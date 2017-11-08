@@ -1,0 +1,268 @@
+use gaia::expression::*;
+use gaia::environment::L1Environment;
+
+whitespace = #quiet<[ \n\t]+>
+ws = whitespace*
+
+keyword -> ()
+    = "dim"
+    / "let"
+    / "if"
+    / "then"
+    / "else"
+    / "true"
+    / "false"
+    / "where"
+    / "end"
+
+identifier -> L1Expression
+    = !keyword id:$([a-zA-Z]+) {
+        L1Expression::Identifier(id.to_owned())
+    }
+
+pub boolean -> L1Expression
+    = t:$("true" / "false") {
+        if t == "true" {
+            L1Expression::Literal(Literal::Bool(true))
+        } else {
+            L1Expression::Literal(Literal::Bool(false))
+        }
+    }
+
+pub integer -> L1Expression
+    = n:$([0-9]+) {
+        let x = n.parse::<u32>().unwrap();
+        L1Expression::Literal(Literal::Int32(x))
+    }
+
+tuple_expression -> L1TupleExpression
+    = ws e0:expression_parens ws "<-" ws e1:expression_parens {
+        L1TupleExpression {
+            lhs: e0,
+            rhs: e1,
+        }
+    }
+
+tuple_expression_next -> L1TupleExpression
+    = "," ws ten:tuple_expression {
+        ten
+    }
+
+pub tuple_builder -> L1Expression
+    = "[" tei:tuple_expression ten:tuple_expression_next* "]" ws {
+        L1Expression::TupleBuilder([vec![tei], ten].concat())
+    }
+
+pub conditional -> L1Expression
+    = "if" whitespace cond:expression_parens "then" whitespace consequent:expression_parens "else" whitespace alternate:expression_parens {
+        let if_expr = L1IfExpression {
+            condition: cond,
+            consequent: consequent,
+            alternate: alternate,
+        };
+        L1Expression::If(Box::new(if_expr))
+    }
+
+pub intension_expression_next -> L1Expression
+    = "," ws ien:expression {
+        ien
+    }
+
+pub intension_builder -> L1Expression
+    = "{" iei:expression* ien:intension_expression_next* "}" expr:expression {
+        let intens_expr = L1IntensionExpression {
+            domain: [iei, ien].concat(),
+            value: expr,
+        };
+        L1Expression::IntensionBuilder(Box::new(intens_expr))
+    }
+
+pub intension_application -> L1Expression
+    = "=>" ws expr:expression {
+        L1Expression::IntensionApplication(Box::new(expr))
+    }
+
+pub query -> L1Expression
+    = "#" {
+        L1Expression::Identifier("#".to_string())
+    }
+
+term -> L1Expression
+    = ws t:(boolean / integer / identifier / query / tuple_builder / intension_application / conditional / intension_builder) ws {
+        t
+    }
+
+expression_group -> L1Expression
+    = "(" expr:expression ")" {
+        expr
+    }
+
+pub expression_parens -> L1Expression
+    = expression_group / expression
+
+pub expression -> L1Expression
+    = #infix<term> {
+        #L x "+" y {
+            let op = L1Expression::Operator("+".to_string());
+            L1Expression::Application(vec![op, x, y])
+        }  x "-" y {
+            let op = L1Expression::Operator("-".to_string());
+            L1Expression::Application(vec![op, x, y])
+        }
+        #L x "*" y {
+            let op = L1Expression::Operator("*".to_string());
+            L1Expression::Application(vec![op, x, y])
+        }  x "/" y {
+            let op = L1Expression::Operator("/".to_string());
+            L1Expression::Application(vec![op, x, y])
+        }
+        #L x ">" y {
+            let op = L1Expression::Operator(">".to_string());
+            L1Expression::Application(vec![op, x, y])
+        }
+        #L x ">=" y {
+            let op = L1Expression::Operator(">=".to_string());
+            L1Expression::Application(vec![op, x, y])
+        }
+        #L x "<" y {
+            let op = L1Expression::Operator("<".to_string());
+            L1Expression::Application(vec![op, x, y])
+        }
+        #L x "<=" y {
+            let op = L1Expression::Operator("<=".to_string());
+            L1Expression::Application(vec![op, x, y])
+        }
+        #L x "@" y {
+            let perturb_expr = L1PerturbExpression {
+                lhs: x,
+                rhs: y,
+            };
+            L1Expression::Perturb(Box::new(perturb_expr))
+        }
+        #L x "." y {
+            match x.clone() {
+                L1Expression::Identifier(id) => {
+                    match id.as_ref() {
+                        "#" =>
+                            L1Expression::Query(Box::new(y)),
+                        _ =>
+                            L1Expression::Application(vec![x, y]),
+                    }
+                },
+
+                _ => L1Expression::Application(vec![x, y])
+            }
+        }
+    }
+
+// dim x <- 0
+pub dimension_declaration -> L1Expression
+    = ws "dim" whitespace id:identifier ws "<-" ws expr:expression_parens ws {
+        let decl = L1DeclarationExpression {
+            lhs: id,
+            rhs: expr,
+        };
+        L1Expression::DimDeclaration(Box::new(decl))
+    }
+
+// let X = 0
+pub variable_declaration -> L1Expression
+    = ws "let" whitespace id:identifier ws "=" expr:expression_where {
+        let decl = L1DeclarationExpression {
+            lhs: id,
+            rhs: expr,
+        };
+        L1Expression::VarDeclaration(Box::new(decl))
+    }
+
+pub where_clause -> Vec<L1Expression>
+    = ws "where" whitespace scope:scope ws "end" ws {
+      scope
+    }
+
+pub expression_where -> L1Expression
+    = ws expr:expression_parens wc:(where_clause)? {
+    match wc {
+        Some(exprs) => {
+            let mut outer_dims: Vec<L1DimensionExpression> = vec![];
+            let mut outer_vars: L1Environment = L1Environment::new();
+            // for each expr in exprs
+            for expr in exprs {
+                match expr {
+                    // collect dim declaration into wheredim
+                    L1Expression::DimDeclaration(decl_expr) => {
+                        let id = decl_expr.lhs.clone()
+                            .as_identifier();
+                        let dim_expr = L1DimensionExpression {
+                            lhs: id,
+                            rhs: decl_expr.rhs.clone(),
+                        };
+                        outer_dims.push(dim_expr)
+                    },
+
+                    // collect let declaration into wherevar
+                    L1Expression::VarDeclaration(decl_expr) => {
+                        let id = decl_expr.lhs.clone()
+                            .as_identifier();
+                        outer_vars.define(id, decl_expr.rhs)
+                    },
+
+                    _ =>
+                        panic!("Unexpected expression in grammar.")
+                }
+            }
+
+            let e0 = if outer_vars.len() > 0 {
+                let wv_expr = L1WhereVarExpression {
+                    lhs: expr.clone(),
+                    rhs: outer_vars.clone(),
+                };
+                Some(L1Expression::WhereVar(Box::new(wv_expr)))
+            } else {
+                None
+            };
+
+            let e1 = match e0 {
+                Some(wv) => {
+                    if outer_dims.len() > 0 {
+                        let wd_expr = L1WhereDimExpression {
+                            lhs: wv.clone(),
+                            rhs: L1ContextExpression(outer_dims),
+                        };
+                        Some(L1Expression::WhereDim(Box::new(wd_expr)))
+                    } else {
+                        Some(wv)
+                    }
+                },
+
+                None => {
+                    if outer_dims.len() > 0 {
+                        let wd_expr = L1WhereDimExpression {
+                            lhs: expr.clone(),
+                            rhs: L1ContextExpression(outer_dims),
+                        };
+                        Some(L1Expression::WhereDim(Box::new(wd_expr)))
+                    } else {
+                        None
+                    }
+                },
+            };
+
+            match e1 {
+                Some(wd) => {
+                    wd
+                },
+
+                None => expr.clone(),
+            }
+        },
+
+        None => expr,
+    }
+}
+
+pub scope -> Vec<L1Expression>
+    = (dimension_declaration / variable_declaration)+
+
+pub top_level -> L1Expression
+  = expression_where

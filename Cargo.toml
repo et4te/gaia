@@ -1,0 +1,11 @@
+[package]
+name = "gaia"
+version = "0.1.0"
+authors = ["Edward Tate <cmalune@gmail.com>"]
+build = "build.rs"
+
+[build-dependencies]
+peg = { version = "0.5" }
+
+[dependencies]
+colored = "1.6"
