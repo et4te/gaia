@@ -16,7 +16,7 @@ keyword -> ()
     / "end"
 
 identifier -> L1Expression
-    = !keyword id:$([a-zA-Z]+) {
+    = !keyword id:$([a-zA-Z_]+) {
         L1Expression::Identifier(id.to_owned())
     }
 
@@ -63,6 +63,15 @@ pub conditional -> L1Expression
         L1Expression::If(Box::new(if_expr))
     }
 
+pub base_abstraction -> L1Expression
+    = "\\" ws id:identifier ws "->" ws expr:expression {
+        let base_expr = L1BaseAbstraction {
+            id: id.as_identifier(),
+            expression: expr,
+        };
+        L1Expression::BaseAbstraction(Box::new(base_expr))
+    }
+
 pub intension_expression_next -> L1Expression
     = "," ws ien:expression {
         ien
@@ -78,7 +87,7 @@ pub intension_builder -> L1Expression
     }
 
 pub intension_application -> L1Expression
-    = "=>" ws expr:expression {
+    = "|>" ws expr:expression {
         L1Expression::IntensionApplication(Box::new(expr))
     }
 
@@ -88,32 +97,34 @@ pub query -> L1Expression
     }
 
 term -> L1Expression
-    = ws t:(boolean / integer / identifier / query / tuple_builder / intension_application / conditional / intension_builder) ws {
+    = ws t:(query / expression_group / boolean / integer / identifier / tuple_builder / intension_application / conditional / base_abstraction / intension_builder) ws {
         t
     }
 
 expression_group -> L1Expression
-    = "(" expr:expression ")" {
+    = "(" ws expr:expression ws ")" ws {
         expr
     }
 
 pub expression_parens -> L1Expression
-    = expression_group / expression
+    = expression
 
 pub expression -> L1Expression
     = #infix<term> {
-        #L x "+" y {
-            let op = L1Expression::Operator("+".to_string());
-            L1Expression::Application(vec![op, x, y])
-        }  x "-" y {
-            let op = L1Expression::Operator("-".to_string());
+        #L x "/" y {
+            let op = L1Expression::Operator("/".to_string());
             L1Expression::Application(vec![op, x, y])
         }
         #L x "*" y {
             let op = L1Expression::Operator("*".to_string());
             L1Expression::Application(vec![op, x, y])
-        }  x "/" y {
-            let op = L1Expression::Operator("/".to_string());
+        }
+        #L x "-" y {
+            let op = L1Expression::Operator("-".to_string());
+            L1Expression::Application(vec![op, x, y])
+        }
+        #L x "+" y {
+            let op = L1Expression::Operator("+".to_string());
             L1Expression::Application(vec![op, x, y])
         }
         #L x ">" y {

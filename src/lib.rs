@@ -149,6 +149,20 @@ pub fn transform_l1_dimensions(expr: L1Expression, dimensions: &mut HashMap<Iden
             (Expression::Perturb(Box::new(perturb_expr)), q_dims)
         },
 
+        L1Expression::BaseAbstraction(base_abstraction) => {
+            let di = Dimension {
+                i: 0,
+                v: Value::Identifier(base_abstraction.id.clone()),
+            };
+            let (expr, q_dims) = transform_l1_dimensions(base_abstraction.expression, dimensions, q, q_dimensions.clone());
+            let base_abstr = BaseAbstraction {
+                param: di.clone(),
+                dimensions: vec![],
+                expression: expr,
+            };
+            (Expression::BaseAbstraction(Box::new(base_abstr)), q_dims)
+        },
+
         L1Expression::IntensionBuilder(intens_expr) => {
             let mut r = vec![];
             let mut q_dimensions = q_dimensions;
@@ -232,61 +246,6 @@ pub fn transform_l1_dimensions(expr: L1Expression, dimensions: &mut HashMap<Iden
             panic!("Unrecognised expression"),
     }
 }
-
-// pub fn transform_toplevel(e0: Option<L1Expression>, expr_vec: Vec<L1Expression>) -> L1Expression {
-//     // A top-level is zero or more dimension declarations,
-//     // zero or more variable declarations and one or more
-//     // expressions.
-
-//     let mut outer_dims: Vec<L1DimensionExpression> = vec![];
-//     let mut outer_vars: L1Environment = L1Environment::new();
-//     let mut outer_exprs: Vec<L1Expression> = vec![];
-
-//     for expr in expr_vec {
-//         match expr {
-//             L1Expression::DimDeclaration(decl_expr) => {
-//                 let id = decl_expr.clone().lhs
-//                     .as_identifier();
-//                 let l1_dim_expr = L1DimensionExpression {
-//                     lhs: id,
-//                     rhs: decl_expr.clone().rhs,
-//                 };
-//                 outer_dims.push(l1_dim_expr);
-//             },
-
-//             L1Expression::VarDeclaration(decl_expr) => {
-//                 let id = decl_expr.clone().lhs
-//                     .as_identifier();
-//                 outer_vars.define(id, decl_expr.rhs)
-//             },
-
-//             L1Expression::Where(w) => {
-//                 outer_exprs.push(transform_toplevel(Some(w.lhs.clone()), w.rhs.clone()))
-//             },
-
-//             expr => {
-//                 outer_exprs.push(expr)
-//             },
-//         }
-//     }
-
-//     match e0 {
-//         Some(e0) => {
-//             let wv_expr = L1WhereVarExpression { lhs: e0, rhs: outer_vars };
-//             let wv = L1Expression::WhereVar(Box::new(wv_expr));
-//             let wd_expr = L1WhereDimExpression { lhs: wv, rhs: L1ContextExpression(outer_dims) };
-//             L1Expression::WhereDim(Box::new(wd_expr))
-//         },
-
-//         None => {
-//             let e0 = L1Expression::Sequence(outer_exprs);
-//             let wv_expr = L1WhereVarExpression { lhs: e0, rhs: outer_vars };
-//             let wv = L1Expression::WhereVar(Box::new(wv_expr));
-//             let wd_expr = L1WhereDimExpression { lhs: wv, rhs: L1ContextExpression(outer_dims) };
-//             L1Expression::WhereDim(Box::new(wd_expr))
-//         }
-//     }
-// }
 
 pub fn print_expression(expr: Expression, indent: u32) -> String {
     match expr {
@@ -399,6 +358,12 @@ pub fn print_expression(expr: Expression, indent: u32) -> String {
             format!("{} {} {}", lhs, "@".bright_white(), rhs)
         },
 
+        Expression::BaseAbstraction(base_abstraction) => {
+            let mut s = "(λ ".bright_white().to_string();
+            s = format!("{}{} ->", s, print_dimension(base_abstraction.param.clone()));
+            format!("{} {})", s, print_expression(base_abstraction.expression.clone(), indent))
+        },
+
         Expression::IntensionBuilder(intens_expr) => {
             let mut s = "{".bright_white().to_string();
             if intens_expr.domain.len() > 0 {
@@ -419,7 +384,7 @@ pub fn print_expression(expr: Expression, indent: u32) -> String {
         },
 
         Expression::IntensionApplication(intens_app) =>
-            format!("=> {}", print_expression((*intens_app).clone(), indent)),
+            format!("|> {}", print_expression((*intens_app).clone(), indent)),
 
         Expression::Identifier(id) => {
             format!("{}", id.bright_yellow())

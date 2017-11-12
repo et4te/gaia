@@ -22,6 +22,19 @@ pub struct TupleExpression {
 }
 
 #[derive(Clone, Debug)]
+pub struct L1BaseAbstraction {
+    pub id: Identifier,
+    pub expression: L1Expression,
+}
+
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+pub struct BaseAbstraction {
+    pub param: Dimension,
+    pub dimensions: Vec<Dimension>,
+    pub expression: Expression,
+}
+
+#[derive(Clone, Debug)]
 pub struct L1IntensionExpression {
     pub domain: Vec<L1Expression>,
     pub value: L1Expression,
@@ -129,6 +142,7 @@ pub enum L1Expression {
     Operator(Identifier),
     Sequence(Vec<L1Expression>),
     TupleBuilder(Vec<L1TupleExpression>),
+    BaseAbstraction(Box<L1BaseAbstraction>),
     IntensionBuilder(Box<L1IntensionExpression>),
     IntensionApplication(Box<L1Expression>),
     Application(Vec<L1Expression>),
@@ -157,6 +171,7 @@ pub enum Expression {
     Operator(Identifier),
     Sequence(Vec<Expression>),
     TupleBuilder(Vec<TupleExpression>),
+    BaseAbstraction(Box<BaseAbstraction>),
     IntensionBuilder(Box<IntensionExpression>),
     IntensionApplication(Box<Expression>),
     Application(Vec<Expression>),

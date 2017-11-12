@@ -27,6 +27,7 @@ pub enum Value {
     Literal(Literal),
     Dimension(Box<Dimension>),
     Intension(Box<Intension>),
+    BaseAbstraction(Box<BaseAbstraction>),
     Identifier(String),
     Context(Context),
     PrimOp(Identifier),
@@ -49,6 +50,16 @@ impl Value {
             },
 
             _ => panic!("Expected dimension.")
+        }
+    }
+
+    pub fn expect_base_abstraction(&self) -> BaseAbstraction {
+        match self {
+            &Value::BaseAbstraction(ref base_abstraction) => {
+                *base_abstraction.clone()
+            },
+
+            _ => panic!("Expected base_abstraction.")
         }
     }
 
@@ -83,6 +94,12 @@ pub fn print_value(v: Value) -> String {
 
         Value::Identifier(id) => {
             format!("{}", id.bright_yellow())
+        },
+
+        Value::BaseAbstraction(base_abs) => {
+            let mut s = format!(".\\ {:?} ->", base_abs.param.clone());
+            s = format!("{} {}", s, super::print_expression(base_abs.expression, 0));
+            s
         },
 
         Value::Intension(intens) => {
