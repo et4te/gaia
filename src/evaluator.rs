@@ -165,7 +165,6 @@ pub fn evaluate(x: Expression, e: &mut Environment, k: Context, init_d: Domain, 
                                 let mut domain = Domain::new();
                                 context.push(param.clone(), value.clone());
                                 domain.push(param.clone());
-                                println!("{:?}", base_abstraction.expression.clone());
                                 evaluate(base_abstraction.expression.clone(), e, k.clone(), init_d.clone(), d.clone(), c)
                             },
 
@@ -190,7 +189,6 @@ pub fn evaluate(x: Expression, e: &mut Environment, k: Context, init_d: Domain, 
                                     },
 
                                     "<=" => {
-                                        println!("{:?}", params[0]);
                                         let a = params[0].expect_integer();
                                         let b = params[1].expect_integer();
                                         Either::Left(Value::Literal(Literal::Bool(a <= b)))
