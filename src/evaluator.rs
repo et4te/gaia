@@ -25,16 +25,22 @@ pub fn evaluate_id1(x: Identifier, e: &mut Environment, k: Context, init_d: Doma
         Either::Left(_) => v0,
 
         Either::Right(mut d0) => {
-            if dd.clone().is_subset(d.clone()) {
+            if d0.clone().is_subset(d.clone()) {
+                // println!("dd => {} is a subset of d => {}",
+                //          dd.clone().print(),
+                //          d.clone().print());
                 if d0.is_subset(k.clone().domain()) {
+                    // println!("d0 => {} is a subset of kd => {}",
+                    //          d0.clone().print(),
+                    //          k.clone().domain().print());
                     evaluate_id1(x, e, k, init_d, dd.clone().union(d0), d, c)
                 } else {
                     println!("i: {} is not a subset of {}", d0.clone().print(), k.clone().domain().print());
                     v0
                 }
             } else {
-                println!("j: {} is not a subset of {}", dd.clone().print(), d.clone().print());
-                Either::Right(dd.difference(d))
+                println!("j: {} is not a subset of {}", d0.clone().print(), d.clone().print());
+                Either::Right(d0.difference(d))
             }
         },
     }
@@ -70,8 +76,11 @@ pub fn evaluate(x: Expression, e: &mut Environment, k: Context, init_d: Domain, 
         Expression::Literal(lit) =>
             Either::Left(Value::Literal(lit)),
 
-        Expression::Dimension(di) =>
-            Either::Left(k.lookup(di).unwrap()),
+        Expression::Dimension(di) => {
+            let v0 = k.lookup(di).unwrap();
+            let di = v0.expect_dimension();
+            Either::Left(Value::Dimension(Box::new(di)))
+        },
 
         Expression::Operator(id) =>
             Either::Left(Value::Identifier(id)),
@@ -121,9 +130,7 @@ pub fn evaluate(x: Expression, e: &mut Environment, k: Context, init_d: Domain, 
         },
 
         Expression::Application(application_expr) => {
-            // println!("Application : {:?}", application_expr[0].clone());
             let e0 = evaluate(application_expr[0].clone(), e, k.clone(), init_d.clone(), d.clone(), c);
-            // println!("Operation : {:?}", e0.clone());
             let mut params: Vec<Value> = vec![];
             let mut missing: Domain = Domain::new();
             for i in 1..application_expr.len() {
@@ -133,7 +140,7 @@ pub fn evaluate(x: Expression, e: &mut Environment, k: Context, init_d: Domain, 
                         params.push(l)
                     },
                     Either::Right(r) => {
-                        missing = missing.union(r)
+                        missing = missing.union(r);
                     }
                 }
             }
@@ -141,11 +148,9 @@ pub fn evaluate(x: Expression, e: &mut Environment, k: Context, init_d: Domain, 
             if missing.len() > 0 {
                 match e0 {
                     Either::Left(_) => {
-                        // println!("Application missing ==> {}", missing.clone().print());
                         Either::Right(missing)
                     },
                     Either::Right(r) => {
-                        // println!("Application missing ==> {}", missing.union(r.clone()).clone().print());
                         Either::Right(missing.union(r))
                     }
                 }
@@ -153,6 +158,17 @@ pub fn evaluate(x: Expression, e: &mut Environment, k: Context, init_d: Domain, 
                 match e0 {
                     Either::Left(l) => {
                         match l {
+                            Value::BaseAbstraction(base_abstraction) => {
+                                let param = base_abstraction.param.clone();
+                                let value = params[0].clone();
+                                let mut context = Context::new();
+                                let mut domain = Domain::new();
+                                context.push(param.clone(), value.clone());
+                                domain.push(param.clone());
+                                println!("{:?}", base_abstraction.expression.clone());
+                                evaluate(base_abstraction.expression.clone(), e, k.clone(), init_d.clone(), d.clone(), c)
+                            },
+
                             Value::Identifier(op) => {
                                 // lookup primitive operator & apply
                                 match op.as_ref() {
@@ -174,6 +190,7 @@ pub fn evaluate(x: Expression, e: &mut Environment, k: Context, init_d: Domain, 
                                     },
 
                                     "<=" => {
+                                        println!("{:?}", params[0]);
                                         let a = params[0].expect_integer();
                                         let b = params[1].expect_integer();
                                         Either::Left(Value::Literal(Literal::Bool(a <= b)))
@@ -191,7 +208,8 @@ pub fn evaluate(x: Expression, e: &mut Environment, k: Context, init_d: Domain, 
                                 }
                             },
 
-                            _ => panic!("Expected function but here found !"),
+                            other =>
+                                panic!("Expected function but here found {:?}", other),
                         }
                     },
                     Either::Right(r) => {
@@ -215,7 +233,6 @@ pub fn evaluate(x: Expression, e: &mut Environment, k: Context, init_d: Domain, 
 
                         Value::Literal(Literal::Bool(false)) => {
                             let x = evaluate(alternate, e, k.clone(), init_d, d.clone(), c);
-                            // println!("Found {:?} in if_else", x);
                             x
                         },
 
@@ -224,7 +241,6 @@ pub fn evaluate(x: Expression, e: &mut Environment, k: Context, init_d: Domain, 
                 },
 
                 Either::Right(r) => {
-                    // println!("If missing {}", r.clone().print());
                     Either::Right(r)
                 }
             }
@@ -252,7 +268,8 @@ pub fn evaluate(x: Expression, e: &mut Environment, k: Context, init_d: Domain, 
                     }
                 },
 
-                Either::Right(d0) => Either::Right(d0)
+                Either::Right(d0) =>
+                    Either::Right(d0)
             }
         },
 
@@ -272,10 +289,13 @@ pub fn evaluate(x: Expression, e: &mut Environment, k: Context, init_d: Domain, 
                 },
 
                 Either::Right(_) => {
-                    // println!("Perturb missing ==> {}", domain.print());
                     rhs.clone()
                 },
             }
+        },
+
+        Expression::BaseAbstraction(base_expr) => {
+            Either::Left(Value::BaseAbstraction(base_expr.clone()))
         },
 
         Expression::IntensionBuilder(intens_expr) => {
@@ -323,26 +343,8 @@ pub fn evaluate(x: Expression, e: &mut Environment, k: Context, init_d: Domain, 
         },
 
         Expression::Identifier(id) => {
-            //println!("==> I :: {}", id.clone());
-            //println!("==> K :: {}", k.clone().print());
-            //println!("==> D :: {}", init_d.clone().print());
-            //println!("==> T :: {}", d.clone().print());
-            evaluate_id1(id.clone(), e, k.clone(), init_d.clone(), init_d, d.clone(), c)
-            //println!("==> I' :: {}", id.clone());
-            //println!("==> K' :: {}", k.clone().print());
-            //println!("==> T' :: {}", d.clone().print());
-            //v1.clone()
-            // let v1 = c.find(id.clone(), k.clone().restrict(d.clone())).clone();
-            // match v1 {
-            //     Some(v) => {
-            //         v.clone()
-            //     },
-            //     None => {
-            //         panic!(format!("Could not find the value of identifier {} @ {}",
-            //                        id,
-            //                        d.clone().print()))
-            //     }
-            // }
+            println!("{} @ {}", id.clone(), k.clone().restrict(d.clone()).print());
+            evaluate_id1(id.clone(), e, k.clone(), init_d.clone(), Domain::new(), d.clone(), c)
         },
 
         Expression::WhereDim(wd) => {
