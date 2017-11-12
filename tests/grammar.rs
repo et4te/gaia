@@ -40,14 +40,27 @@ fn test_expression() {
     println!("expression => {:?}", evaluate(expr));
 }
 
+const TUPLE_TEST_1: &str = "
+[t <- 0, s <- 0]
+where
+  dim t <- 0
+  dim s <- 0
+end
+";
+
 #[test]
 fn test_tuple_builder() {
     assert!(tuple_builder("[ t <- 0 ]").is_ok());
     assert!(tuple_builder("[t <- 0, s <- 1]").is_ok());
 
-    let expr = tuple_builder("[0 <- 0, 1 <- 1]").unwrap();
-
-    println!("tuple_builder => {:?}", evaluate(expr));
+    let p1 = top_level(TUPLE_TEST_1).unwrap();
+    let mut dims = HashMap::new();
+    let q_dimensions = HashSet::new();
+    let (p2, _) = transform_l1_dimensions(p1.clone(), &mut dims, 0, q_dimensions);
+    println!("");
+    println!("{}", print_expression(p2.clone(), 0));
+    println!("");
+    evaluate(p1);
 }
 
 #[test]
@@ -55,11 +68,35 @@ fn test_if() {
     assert!(conditional("if X then Y else Z").is_ok());
 }
 
+const PERTURB_TEST_1: &str = "
+X @ [t <- 0]
+where
+  dim t <- 0
+
+  let X = #.t
+end
+";
+
+const PERTURB_TEST_2: &str = "
+X @ [t <- 3, s <- 3]
+where
+  dim t <- 0
+  dim s <- 0
+
+  let X = #.t + #.s
+end
+";
+
 #[test]
 fn test_perturb() {
     assert!(expression("A @ [t <- 0]").is_ok());
     assert!(expression("A @ [t <- #.t]").is_ok());
-    //println!("{:?}", expression("A @ [t <- 0]").unwrap());
+
+    let p1 = top_level(PERTURB_TEST_1).unwrap();
+    evaluate(p1);
+
+    let p1 = top_level(PERTURB_TEST_2).unwrap();
+    evaluate(p1);
 }
 
 #[test]
@@ -72,6 +109,28 @@ fn test_let() {
     assert!(variable_declaration("let x = 0").is_ok());
     assert!(variable_declaration("let x = x + y").is_ok());
     //println!("{:?}", variable_declaration("let x = x + y").is_ok());
+}
+
+const INTENSION_TEST_1: &str = "
+=> time_three @ [t <- 0]
+where
+  dim t <- 0
+
+  let time_three = time @ [t <- 3]
+  let time = {t} #.t
+end
+";
+
+#[test]
+fn test_intension() {
+    let p1 = top_level(INTENSION_TEST_1).unwrap();
+    let mut dims = HashMap::new();
+    let q_dimensions = HashSet::new();
+    let (p2, _) = transform_l1_dimensions(p1.clone(), &mut dims, 0, q_dimensions);
+    println!("");
+    println!("{}", print_expression(p2.clone(), 0));
+    println!("");
+    println!("{:?}", evaluate(p1));
 }
 
 // const M: &str = "
@@ -119,30 +178,62 @@ fn test_let() {
 // ";
 
 const FIB: &str = "
-F @ [n <- 20]
+fib @ [n <- 20]
 where
   dim n <- 0
 
-  let F =
+  let fib =
     if #.n <= 1 then
       #.n
     else
-      F @ [n <- #.n - 1] + F @ [n <- #.n - 2]
+      (fib @ [n <- #.n - 1]) + (fib @ [n <- #.n - 2])
 end
 ";
 
-// const SOURCE: &str = "
-// X @ [t <- 3]
+// "
+// W
 // where
-//   dim t <- 0
-//   dim s <- 0
+//   dim d <- 2
+//   dim a <- 0
+//   dim b <- 0
 
-//   let Y = X @ [t <- #.t - 1, s <- #.s + 1]
-//   let X =
-//     if #.t <= 0 then
-//       #.s
+//   let A = if #.a <= 0 then 1 else A @ [a <- #.a - 1] + 1
+//   let B = if #.b <= 0 then 1 else B @ [b <- #.b - 1] + 1
+
+//   let Ar = A @ [a <- #.d]
+//   let Br = B @ [b <- #.d]
+
+//   let Z = Ar * Br
+
+//   let W = if #.d <= 0 then Z else W @ [d <- #.d - 1] + Z
+// end
+// ";
+
+// const SOURCE: &str = "
+// wvr @ [d <- 0, x <- ({} X), y <- ({} Y)]
+// where
+//   dim d <- 0
+//   dim x <- 0
+//   dim y <- 0
+
+//   let X = if #.d <= 0 then false else true
+//   let Y = if #.d <= 0 then false else true
+
+//   let wvr =
+//     if |> (#.y @ [d <- 0]) then
+//       if #.d <= 0 then
+//         (|> #.x)
+//       else
+//         wvr @ [d <- #.d - 1, x <- #.x @ [d <- #.d + 1], y <- #.y @ [d <- #.d + 1]]
 //     else
-//       Y + 1
+//       wvr @ [d <- #.d, x <- #.x @ [d <- #.d + 1], y <- #.y @ [d <- #.d + 1]]
+// end
+// ";
+
+// const SOURCE: &str = "
+// ((\\ p -> p) . x)
+// where
+//   dim x <- 0
 // end
 // ";
 
