@@ -9,7 +9,7 @@ fib @ [n <- 8]
 where
   dim n <- 0
 
-  let fib =
+  fib =
     if #.n <= 1 then
       #.n
     else
