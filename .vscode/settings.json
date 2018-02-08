@@ -1,0 +1,17 @@
+{
+    "rust.rustLangSrcPath": "C:\\Users\\edtate\\.rustup\\toolchains\\nightly-x86_64-pc-windows-msvc\\lib\\rustlib\\src\\rust\\src",
+    "rust.rustfmtPath": "C:\\Users\\edtate\\.cargo\\bin\\rust-fmt.exe",
+    "rust.rls": {
+        "executable": "rustup",
+        "args": [
+            "run",
+            "nightly",
+            "rls"
+        ],
+        "env": {
+            "RUST_LOG": "rls=debug"
+        }
+    },
+    "editor.formatOnSave": true,
+    "debug.allowBreakpointsEverywhere": true,
+}

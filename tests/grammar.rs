@@ -1,7 +1,7 @@
-extern crate gaia;
 extern crate colored;
+extern crate gaia;
 
-use gaia::{transform_l1_dimensions};
+use gaia::transform_l1_dimensions;
 use gaia::evaluate;
 use gaia::print_expression;
 use std::collections::{HashMap, HashSet};
@@ -73,7 +73,7 @@ X @ [t <- 0]
 where
   dim t <- 0
 
-  let X = #.t
+  X = #.t
 end
 ";
 
@@ -83,7 +83,7 @@ where
   dim t <- 0
   dim s <- 0
 
-  let X = #.t + #.s
+  X = #.t + #.s
 end
 ";
 
@@ -106,8 +106,9 @@ fn test_query() {
 
 #[test]
 fn test_let() {
-    assert!(variable_declaration("let x = 0").is_ok());
-    assert!(variable_declaration("let x = x + y").is_ok());
+    assert!(variable_declaration("x = 0").is_ok());
+    assert!(variable_declaration("x = x + y").is_ok());
+    assert!(variable_declaration("A [x <- 0, y <- 0] = 0").is_ok());
     //println!("{:?}", variable_declaration("let x = x + y").is_ok());
 }
 
@@ -116,8 +117,8 @@ const INTENSION_TEST_1: &str = "
 where
   dim t <- 0
 
-  let time_three = time @ [t <- 3]
-  let time = {t} #.t
+  time_three = time @ [t <- 3]
+  time = {t} #.t
 end
 ";
 
@@ -127,9 +128,9 @@ fn test_intension() {
     let mut dims = HashMap::new();
     let q_dimensions = HashSet::new();
     let (p2, _) = transform_l1_dimensions(p1.clone(), &mut dims, 0, q_dimensions);
-    println!("");
-    println!("{}", print_expression(p2.clone(), 0));
-    println!("");
+    // println!("");
+    // println!("{}", print_expression(p2.clone(), 0));
+    // println!("");
     println!("{:?}", evaluate(p1));
 }
 
@@ -178,11 +179,11 @@ fn test_intension() {
 // ";
 
 const FIB: &str = "
-fib @ [n <- 20]
+fib @ [n <- 30]
 where
   dim n <- 0
 
-  let fib =
+  fib =
     if #.n <= 1 then
       #.n
     else

@@ -87,7 +87,7 @@ pub intension_builder -> L1Expression
     }
 
 pub intension_application -> L1Expression
-    = "|>" ws expr:expression {
+    = "=>" ws expr:expression {
         L1Expression::IntensionApplication(Box::new(expr))
     }
 
@@ -111,6 +111,14 @@ pub expression_parens -> L1Expression
 
 pub expression -> L1Expression
     = #infix<term> {
+        #L x "=" y {
+            let decl = L1DeclarationExpression {
+                lhs: x,
+                tuple_builder: None,
+                rhs: y,
+            };
+            L1Expression::VarDeclaration(Box::new(decl))
+        }
         #L x "/" y {
             let op = L1Expression::Operator("/".to_string());
             L1Expression::Application(vec![op, x, y])
@@ -171,16 +179,20 @@ pub dimension_declaration -> L1Expression
     = ws "dim" whitespace id:identifier ws "<-" ws expr:expression_parens ws {
         let decl = L1DeclarationExpression {
             lhs: id,
+            tuple_builder: None,
             rhs: expr,
         };
         L1Expression::DimDeclaration(Box::new(decl))
     }
 
-// let X = 0
+// let A = 0
+// let B [t <- 0] = 0
+// let B [t <- i] = prev.t X + 1
 pub variable_declaration -> L1Expression
-    = ws "let" whitespace id:identifier ws "=" expr:expression_where {
+    = ws id:identifier ws tb:(tuple_builder)? "=" expr:expression_where {
         let decl = L1DeclarationExpression {
             lhs: id,
+            tuple_builder: tb,
             rhs: expr,
         };
         L1Expression::VarDeclaration(Box::new(decl))

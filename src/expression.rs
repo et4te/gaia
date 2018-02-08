@@ -1,4 +1,4 @@
-use environment::{L1Environment, Environment};
+use environment::{Environment, L1Environment};
 use value::Dimension;
 
 type Identifier = String;
@@ -110,7 +110,7 @@ pub struct L1WhereDimExpression {
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct WhereDimExpression {
-    pub nat_q: u32,            // The wheredim label q E N
+    pub nat_q: u32,       // The wheredim label q E N
     pub dim_q: Dimension, // A unique dimension (since q is unique)
     pub lhs: Expression,
     pub rhs: ContextExpression,
@@ -119,6 +119,7 @@ pub struct WhereDimExpression {
 #[derive(Clone, Debug)]
 pub struct L1DeclarationExpression {
     pub lhs: L1Expression,
+    pub tuple_builder: Option<L1Expression>,
     pub rhs: L1Expression,
 }
 
