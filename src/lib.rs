@@ -41,8 +41,8 @@ pub fn evaluate(expr: L1Expression) -> Either<Value, Domain> {
         k.push(q_dim.clone(), Value::Literal(Literal::Int32(0)));
         d.push(q_dim);
     }
-    println!("K :: {}", k.clone().print());
-    println!("D :: {}\n", d.clone().print());
+    //println!("K :: {}", k.clone().print());
+    //println!("D :: {}\n", d.clone().print());
     evaluator::evaluate(x, &mut e, k.clone(), d.clone(), d.clone(), &mut c)
 }
 
@@ -185,20 +185,25 @@ pub fn transform_l1_dimensions(
 
         L1Expression::IntensionBuilder(intens_expr) => {
             let mut r = vec![];
-            let mut q_dimensions = q_dimensions;
+            let mut q_domain = q_dimensions;
             let domain = intens_expr.domain.clone();
+            println!(
+                "dimensions = {:?}, q_dimensions = {:?}",
+                dimensions.clone(),
+                q_domain.clone()
+            );
             for dim in domain {
-                let (di, q_dims) =
-                    transform_l1_dimensions(dim, dimensions, q, q_dimensions.clone());
-                q_dimensions = q_dims;
+                let (di, q_dims) = transform_l1_dimensions(dim, dimensions, q, q_domain.clone());
+                q_domain = q_dims;
                 r.push(di);
             }
-            let (e0, q_dims) = transform_l1_dimensions(
-                intens_expr.value.clone(),
-                dimensions,
-                q,
-                q_dimensions.clone(),
+            println!(
+                "dimensions = {:?}, q_dimensions = {:?}",
+                dimensions.clone(),
+                q_domain.clone()
             );
+            let (e0, q_dims) =
+                transform_l1_dimensions(intens_expr.value.clone(), dimensions, q, q_domain.clone());
             let intens_expr = IntensionExpression {
                 domain: r.clone(),
                 value: e0,
