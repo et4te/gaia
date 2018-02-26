@@ -1,7 +1,7 @@
 use gaia::expression::*;
 use gaia::environment::L1Environment;
 
-whitespace = #quiet<[ \n\t]+>
+whitespace = #quiet<[ \n\r\t]+>
 ws = whitespace*
 
 keyword -> ()
