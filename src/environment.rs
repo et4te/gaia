@@ -3,8 +3,8 @@ use expression::*;
 
 type Identifier = String;
 
-#[derive(Clone, Debug)]
-pub struct L1Environment(pub HashMap<Identifier,L1Expression>);
+#[derive(PartialEq, Clone, Debug)]
+pub struct L1Environment(pub HashMap<Identifier, L1Expression>);
 
 impl L1Environment {
     pub fn new() -> L1Environment {
@@ -14,8 +14,7 @@ impl L1Environment {
     pub fn lookup(&self, x: Identifier) -> &L1Expression {
         match self.0.get(&x) {
             Some(xi) => xi,
-            None =>
-                panic!(format!("Undefined identifier {}", x)),
+            None => panic!(format!("Undefined identifier {}", x)),
         }
     }
 
@@ -49,14 +48,17 @@ impl Environment {
     pub fn lookup(&self, id: Identifier) -> Expression {
         for x in self.0.clone() {
             if x.id == id {
-                return x.equation.clone()
+                return x.equation.clone();
             }
         }
         panic!("Undefined identifier {}")
     }
 
     pub fn define(&mut self, id: Identifier, x: Expression) {
-        self.0.push(Definition { id: id, equation: x})
+        self.0.push(Definition {
+            id: id,
+            equation: x,
+        })
     }
 
     pub fn merge(&mut self, other: Environment) {
