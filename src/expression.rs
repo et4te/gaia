@@ -9,7 +9,7 @@ pub enum Literal {
     Int32(u32),
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct L1TupleExpression {
     pub lhs: L1Expression,
     pub rhs: L1Expression,
@@ -21,7 +21,7 @@ pub struct TupleExpression {
     pub rhs: Expression,
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct L1BaseAbstraction {
     pub id: Identifier,
     pub expression: L1Expression,
@@ -34,7 +34,7 @@ pub struct BaseAbstraction {
     pub expression: Expression,
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct L1IntensionExpression {
     pub domain: Vec<L1Expression>,
     pub value: L1Expression,
@@ -46,7 +46,7 @@ pub struct IntensionExpression {
     pub value: Expression,
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct L1IfExpression {
     pub condition: L1Expression,
     pub consequent: L1Expression,
@@ -60,7 +60,7 @@ pub struct IfExpression {
     pub alternate: Expression,
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct L1WhereVarExpression {
     pub lhs: L1Expression,
     pub rhs: L1Environment,
@@ -72,7 +72,7 @@ pub struct WhereVarExpression {
     pub rhs: Environment,
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct L1PerturbExpression {
     pub lhs: L1Expression,
     pub rhs: L1Expression,
@@ -84,7 +84,7 @@ pub struct PerturbExpression {
     pub rhs: Expression,
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct L1DimensionExpression {
     pub lhs: Identifier,
     pub rhs: L1Expression,
@@ -96,13 +96,13 @@ pub struct DimensionExpression {
     pub rhs: Expression,
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct L1ContextExpression(pub Vec<L1DimensionExpression>);
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct ContextExpression(pub Vec<DimensionExpression>);
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct L1WhereDimExpression {
     pub lhs: L1Expression,
     pub rhs: L1ContextExpression,
@@ -116,7 +116,7 @@ pub struct WhereDimExpression {
     pub rhs: ContextExpression,
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct L1DeclarationExpression {
     pub lhs: L1Expression,
     pub tuple_builder: Option<L1Expression>,
@@ -129,13 +129,13 @@ pub struct DeclarationExpression {
     pub rhs: Expression,
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct L1WhereExpression {
     pub lhs: L1Expression,
     pub rhs: Vec<L1Expression>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum L1Expression {
     DimDeclaration(Box<L1DeclarationExpression>),
     VarDeclaration(Box<L1DeclarationExpression>),
