@@ -19,6 +19,7 @@ pub fn print_dimension(d: Dimension) -> String {
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct Intension {
     pub k: Context,
+    pub d: Vec<Dimension>,
     pub x: Box<Expression>,
 }
 
@@ -36,84 +37,68 @@ pub enum Value {
 impl Value {
     pub fn expect_integer(&self) -> u32 {
         match self {
-            &Value::Literal(Literal::Int32(n)) => {
-                n
-            }
-            _ => panic!("Expected u32.")
+            &Value::Literal(Literal::Int32(n)) => n,
+            _ => panic!("Expected u32."),
         }
     }
 
     pub fn expect_dimension(&self) -> Dimension {
         match self {
-            &Value::Dimension(ref di) => {
-                *di.clone()
-            },
+            &Value::Dimension(ref di) => *di.clone(),
 
-            _ => panic!("Expected dimension.")
+            _ => panic!("Expected dimension."),
         }
     }
 
     pub fn expect_base_abstraction(&self) -> BaseAbstraction {
         match self {
-            &Value::BaseAbstraction(ref base_abstraction) => {
-                *base_abstraction.clone()
-            },
+            &Value::BaseAbstraction(ref base_abstraction) => *base_abstraction.clone(),
 
-            _ => panic!("Expected base_abstraction.")
+            _ => panic!("Expected base_abstraction."),
         }
     }
 
     pub fn expect_intension(&self) -> Intension {
         match self {
-            &Value::Intension(ref intens) => {
-                *intens.clone()
-            },
+            &Value::Intension(ref intens) => *intens.clone(),
 
-            _ => panic!("Expected intension.")
+            _ => panic!("Expected intension."),
         }
     }
 }
 
 pub fn print_value(v: Value) -> String {
     match v.clone() {
-        Value::Literal(lit) => {
-            match lit {
-                Literal::Bool(b) => {
-                    let s = format!("{:?}", b).bright_cyan();
-                    format!("{}", s)
-                }
-                Literal::Int32(i) => {
-                    let s = format!("{:?}", i).bright_cyan();
-                    format!("{}", s)
-                }
+        Value::Literal(lit) => match lit {
+            Literal::Bool(b) => {
+                let s = format!("{:?}", b).bright_cyan();
+                format!("{}", s)
+            }
+            Literal::Int32(i) => {
+                let s = format!("{:?}", i).bright_cyan();
+                format!("{}", s)
             }
         },
 
-        Value::Dimension(di) =>
-            print_dimension(*di),
+        Value::Dimension(di) => print_dimension(*di),
 
-        Value::Identifier(id) => {
-            format!("{}", id.bright_yellow())
-        },
+        Value::Identifier(id) => format!("{}", id.bright_yellow()),
 
         Value::BaseAbstraction(base_abs) => {
             let mut s = format!(".\\ {:?} ->", base_abs.param.clone());
             s = format!("{} {}", s, super::print_expression(base_abs.expression, 0));
             s
-        },
+        }
 
         Value::Intension(intens) => {
-            let mut s = format!("{}", intens.k.clone().domain().print());
-            s = format!("{} {}", s, super::print_expression(*intens.x, 0));
+            let mut s = format!("{}", intens.clone().k.clone().domain().print());
+            s = format!("{} {}", s, super::print_expression(*intens.clone().x, 0));
+            s = format!("{} {}", s, intens.k.clone().print());
             s
-        },
-
-        Value::Context(k) => {
-            format!("{:?}", k)
-        },
-
-        Value::PrimOp(op) => {
-            format!("{}", op.bright_white())
         }
+
+        Value::Context(k) => format!("{:?}", k),
+
+        Value::PrimOp(op) => format!("{}", op.bright_white()),
     }
 }
