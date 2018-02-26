@@ -1,5 +1,6 @@
 use colored::*;
 use std::collections::HashSet;
+use std::iter::FromIterator;
 
 use value::*;
 
@@ -7,7 +8,6 @@ use value::*;
 pub struct Domain(pub HashSet<Dimension>);
 
 impl Domain {
-
     pub fn new() -> Domain {
         Domain(HashSet::new())
     }
@@ -30,6 +30,22 @@ impl Domain {
 
     pub fn union(&self, other: Domain) -> Domain {
         let u = self.0.union(&other.0).cloned().collect();
+        Domain(u)
+    }
+
+    pub fn from_vec(&self, other: Vec<Dimension>) -> Domain {
+        Domain(HashSet::from_iter(other.iter().cloned()))
+    }
+
+    pub fn to_vec(&self) -> Vec<Dimension> {
+        let mut vec: Vec<Dimension> = vec![];
+        vec.extend(self.0.clone().into_iter());
+        vec
+    }
+
+    pub fn merge(&self, other: Vec<Dimension>) -> Domain {
+        let other = HashSet::from_iter(other.iter().cloned());
+        let u = self.0.union(&other).cloned().collect();
         Domain(u)
     }
 
