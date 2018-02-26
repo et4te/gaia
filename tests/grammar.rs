@@ -1,10 +1,11 @@
 extern crate colored;
 extern crate gaia;
 
-use gaia::transform_l1_dimensions;
 use gaia::evaluate;
-use gaia::print_expression;
-use std::collections::{HashMap, HashSet};
+use gaia::value::Value;
+use gaia::expression::Literal;
+use std::fs::File;
+use std::io::prelude::*;
 
 mod grammar {
     include!(concat!(env!("OUT_DIR"), "/grammar.rs"));
@@ -12,54 +13,53 @@ mod grammar {
 
 use self::grammar::*;
 
+fn read_source(filename: &str) -> String {
+    let mut f = File::open(filename).expect("File not found");
+    let mut source = String::new();
+    f.read_to_string(&mut source)
+        .expect("Something went wrong reading source");
+    source
+}
+
 #[test]
 fn test_boolean() {
     assert!(boolean("true").is_ok());
     assert!(boolean("false").is_ok());
 
-    let expr = boolean("true").unwrap();
+    let test_true = evaluate(boolean("true").unwrap()).expect_value();
+    let test_false = evaluate(boolean("false").unwrap()).expect_value();
 
-    println!("boolean => {:?}", evaluate(expr));
+    assert_eq!(test_true, Value::Literal(Literal::Bool(true)));
+    assert_eq!(test_false, Value::Literal(Literal::Bool(false)));
 }
 
 #[test]
 fn test_integer() {
     assert!(integer("1234").is_ok());
 
-    let expr = integer("1234").unwrap();
+    let test_small_integer = evaluate(integer("1234").unwrap()).expect_value();
 
-    println!("integer => {:?}", evaluate(expr));
+    assert_eq!(test_small_integer, Value::Literal(Literal::Int32(1234)));
 }
 
 #[test]
 fn test_expression() {
     assert!(expression("100 + 100").is_ok());
 
-    let expr = expression("100 + 100").unwrap();
+    let test_addition = evaluate(expression("100 + 100").unwrap()).expect_value();
 
-    println!("expression => {:?}", evaluate(expr));
+    assert_eq!(test_addition, Value::Literal(Literal::Int32(200)));
 }
-
-const TUPLE_TEST_1: &str = "
-[t <- 0, s <- 0]
-where
-  dim t <- 0
-  dim s <- 0
-end
-";
 
 #[test]
 fn test_tuple_builder() {
     assert!(tuple_builder("[ t <- 0 ]").is_ok());
     assert!(tuple_builder("[t <- 0, s <- 1]").is_ok());
 
-    let p1 = top_level(TUPLE_TEST_1).unwrap();
-    let mut dims = HashMap::new();
-    let q_dimensions = HashSet::new();
-    let (p2, _) = transform_l1_dimensions(p1.clone(), &mut dims, 0, q_dimensions);
-    println!("");
-    println!("{}", print_expression(p2.clone(), 0));
-    println!("");
+    let tuple_source_1 = read_source("./isrc/tuple_1.i");
+
+    let p1 = top_level(tuple_source_1.as_ref()).unwrap();
+
     evaluate(p1);
 }
 
@@ -68,34 +68,18 @@ fn test_if() {
     assert!(conditional("if X then Y else Z").is_ok());
 }
 
-const PERTURB_TEST_1: &str = "
-X @ [t <- 0]
-where
-  dim t <- 0
-
-  X = #.t
-end
-";
-
-const PERTURB_TEST_2: &str = "
-X @ [t <- 3, s <- 3]
-where
-  dim t <- 0
-  dim s <- 0
-
-  X = #.t + #.s
-end
-";
-
 #[test]
 fn test_perturb() {
     assert!(expression("A @ [t <- 0]").is_ok());
     assert!(expression("A @ [t <- #.t]").is_ok());
 
-    let p1 = top_level(PERTURB_TEST_1).unwrap();
+    let perturb_source_1 = read_source("./isrc/perturb_1.i");
+    let perturb_source_2 = read_source("./isrc/perturb_2.i");
+
+    let p1 = top_level(perturb_source_1.as_ref()).unwrap();
     evaluate(p1);
 
-    let p1 = top_level(PERTURB_TEST_2).unwrap();
+    let p1 = top_level(perturb_source_2.as_ref()).unwrap();
     evaluate(p1);
 }
 
@@ -112,26 +96,31 @@ fn test_let() {
     //println!("{:?}", variable_declaration("let x = x + y").is_ok());
 }
 
-const INTENSION_TEST_1: &str = "
-=> time_three @ [t <- 0]
-where
-  dim t <- 0
-
-  time_three = time @ [t <- 3]
-  time = {t} #.t
-end
-";
-
 #[test]
 fn test_intension() {
-    let p1 = top_level(INTENSION_TEST_1).unwrap();
-    let mut dims = HashMap::new();
-    let q_dimensions = HashSet::new();
-    let (p2, _) = transform_l1_dimensions(p1.clone(), &mut dims, 0, q_dimensions);
-    // println!("");
-    // println!("{}", print_expression(p2.clone(), 0));
-    // println!("");
-    println!("{:?}", evaluate(p1));
+    let intension_source_1 = read_source("./isrc/intension_1.i");
+    let intension_source_2 = read_source("./isrc/intension_2.i");
+
+    let intension_test_1 = top_level(intension_source_1.as_ref()).unwrap();
+    let intension_test_2 = top_level(intension_source_2.as_ref()).unwrap();
+
+    let intension_test_1_result = evaluate(intension_test_1).expect_value();
+
+    assert_eq!(Value::Literal(Literal::Int32(0)), intension_test_1_result);
+
+    let intension_test_2_result = evaluate(intension_test_2).expect_value();
+
+    assert_eq!(Value::Literal(Literal::Int32(3)), intension_test_2_result);
+}
+
+#[test]
+fn test_fib() {
+    let fib_source = read_source("./isrc/fib.i");
+
+    assert!(top_level(fib_source.as_ref()).is_ok());
+    let p1 = top_level(fib_source.as_ref()).unwrap();
+
+    evaluate(p1);
 }
 
 // const M: &str = "
@@ -177,19 +166,6 @@ fn test_intension() {
 //       WA @ [x <- #.x @ [t <- #.t + 1], y <- #.y @ [t <- #.t + 1]]
 // end
 // ";
-
-const FIB: &str = "
-fib @ [n <- 30]
-where
-  dim n <- 0
-
-  fib =
-    if #.n <= 1 then
-      #.n
-    else
-      (fib @ [n <- #.n - 1]) + (fib @ [n <- #.n - 2])
-end
-";
 
 // "
 // W
@@ -237,16 +213,3 @@ end
 //   dim x <- 0
 // end
 // ";
-
-#[test]
-fn test_top_level() {
-    assert!(top_level(FIB).is_ok());
-    let p1 = top_level(FIB).unwrap();
-    let mut dims = HashMap::new();
-    let q_dimensions = HashSet::new();
-    let (p2, _) = transform_l1_dimensions(p1.clone(), &mut dims, 0, q_dimensions);
-    println!("");
-    println!("{}", print_expression(p2.clone(), 0));
-    println!("");
-    println!("{:?}", evaluate(p1));
-}
