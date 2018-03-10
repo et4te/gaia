@@ -29,6 +29,8 @@ pub enum Value {
     Dimension(Box<Dimension>),
     Intension(Box<Intension>),
     BaseAbstraction(Box<BaseAbstraction>),
+    ValueAbstraction(Box<ValueAbstraction>),
+    NameAbstraction(Box<NameAbstraction>),
     Identifier(String),
     Context(Context),
     PrimOp(Identifier),
@@ -84,9 +86,33 @@ pub fn print_value(v: Value) -> String {
 
         Value::Identifier(id) => format!("{}", id.bright_yellow()),
 
-        Value::BaseAbstraction(base_abs) => {
-            let mut s = format!(".\\ {:?} ->", base_abs.param.clone());
-            s = format!("{} {}", s, super::print_expression(base_abs.expression, 0));
+        Value::BaseAbstraction(base_abstraction) => {
+            let mut s = format!(".\\ {:?} -> ", base_abstraction.dimensions.clone());
+            s = format!(
+                "{} {}",
+                s,
+                super::print_expression(base_abstraction.body, 0)
+            );
+            s
+        }
+
+        Value::ValueAbstraction(value_abstraction) => {
+            let mut s = format!("!\\ {:?} -> ", value_abstraction.dimensions.clone());
+            s = format!(
+                "{} {}",
+                s,
+                super::print_expression(value_abstraction.body, 0)
+            );
+            s
+        }
+
+        Value::NameAbstraction(name_abstraction) => {
+            let mut s = format!(" \\ {:?} -> ", name_abstraction.dimensions.clone());
+            s = format!(
+                "{} {}",
+                s,
+                super::print_expression(name_abstraction.body, 0)
+            );
             s
         }
 
