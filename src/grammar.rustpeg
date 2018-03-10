@@ -64,10 +64,10 @@ pub conditional -> L1Expression
     }
 
 pub base_abstraction -> L1Expression
-    = "\\" ws id:identifier ws "->" ws expr:expression {
+    = "\\" ws formal_parameters:identifier+ ws "->" ws expr:expression {
         let base_expr = L1BaseAbstraction {
-            id: id.as_identifier(),
-            expression: expr,
+            formal_parameters: formal_parameters,
+            body: expr,
         };
         L1Expression::BaseAbstraction(Box::new(base_expr))
     }
@@ -117,7 +117,7 @@ pub expression -> L1Expression
                 tuple_builder: None,
                 rhs: y,
             };
-            L1Expression::VarDeclaration(Box::new(decl))
+            L1Expression::VariableDeclaration(Box::new(decl))
         }
         #L x "/" y {
             let op = L1Expression::Operator("/".to_string());
@@ -151,6 +151,10 @@ pub expression -> L1Expression
             let op = L1Expression::Operator("<=".to_string());
             L1Expression::Application(vec![op, x, y])
         }
+        #L x "==" y {
+            let op = L1Expression::Operator("==".to_string());
+            L1Expression::Application(vec![op, x, y])
+        }
         #L x "@" y {
             let perturb_expr = L1PerturbExpression {
                 lhs: x,
@@ -182,12 +186,30 @@ pub dimension_declaration -> L1Expression
             tuple_builder: None,
             rhs: expr,
         };
-        L1Expression::DimDeclaration(Box::new(decl))
+        L1Expression::DimensionDeclaration(Box::new(decl))
     }
 
-// let A = 0
-// let B [t <- 0] = 0
-// let B [t <- i] = prev.t X + 1
+pub base_parameter -> L1Expression
+    = "." param:identifier {
+        param
+    }
+
+pub value_parameter -> L1Expression
+    = "!" param:expression {
+        param
+    }
+
+pub name_parameter -> L1Expression
+    = ws param:identifier {
+        param
+    }
+
+pub declaration -> L1Expression
+    = dimension_declaration / variable_declaration / function_declaration
+
+// A = 0
+// B [t <- 0] = 0
+// B [t <- i] = prev.t X + 1
 pub variable_declaration -> L1Expression
     = ws id:identifier ws tb:(tuple_builder)? "=" expr:expression_where {
         let decl = L1DeclarationExpression {
@@ -195,7 +217,25 @@ pub variable_declaration -> L1Expression
             tuple_builder: tb,
             rhs: expr,
         };
-        L1Expression::VarDeclaration(Box::new(decl))
+        L1Expression::VariableDeclaration(Box::new(decl))
+    }
+
+// f A = A
+// f = n\ A -> A 
+// f.d = d
+// f = b\ d -> d
+// f.d X = #.d + X
+// f = b\ d -> n\ X -> #.d + X
+pub function_declaration -> L1Expression
+    = ws id:identifier bps:(base_parameter)* vps:(value_parameter)* ws nps:(name_parameter)* ws "=" expr:expression_where {
+        let decl = L1FunctionDeclaration {
+            name: id,
+            base_parameters: bps,
+            value_parameters: vps,
+            name_parameters: nps,
+            body: expr,
+        };
+        L1Expression::FunctionDeclaration(Box::new(decl))
     }
 
 pub where_clause -> Vec<L1Expression>
@@ -213,9 +253,9 @@ pub expression_where -> L1Expression
             for expr in exprs {
                 match expr {
                     // collect dim declaration into wheredim
-                    L1Expression::DimDeclaration(decl_expr) => {
+                    L1Expression::DimensionDeclaration(decl_expr) => {
                         let id = decl_expr.lhs.clone()
-                            .as_identifier();
+                            .expect_identifier();
                         let dim_expr = L1DimensionExpression {
                             lhs: id,
                             rhs: decl_expr.rhs.clone(),
@@ -224,9 +264,9 @@ pub expression_where -> L1Expression
                     },
 
                     // collect let declaration into wherevar
-                    L1Expression::VarDeclaration(decl_expr) => {
+                    L1Expression::VariableDeclaration(decl_expr) => {
                         let id = decl_expr.lhs.clone()
-                            .as_identifier();
+                            .expect_identifier();
                         outer_vars.define(id, decl_expr.rhs)
                     },
 
@@ -285,7 +325,7 @@ pub expression_where -> L1Expression
 }
 
 pub scope -> Vec<L1Expression>
-    = (dimension_declaration / variable_declaration)+
+    = declaration+
 
 pub top_level -> L1Expression
   = expression_where
