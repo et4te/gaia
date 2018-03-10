@@ -202,23 +202,22 @@ pub fn evaluate(
                 match e0 {
                     Either::Left(l) => {
                         match l {
-                            Value::BaseAbstraction(base_abstraction) => {
-                                let param = base_abstraction.param.clone();
-                                let value = params[0].clone();
-                                let mut context = Context::new();
-                                let mut domain = Domain::new();
-                                context.push(param.clone(), value.clone());
-                                domain.push(param.clone());
-                                evaluate(
-                                    base_abstraction.expression.clone(),
-                                    e,
-                                    k.clone(),
-                                    init_d.clone(),
-                                    d.clone(),
-                                    c,
-                                )
-                            }
-
+                            // Value::BaseAbstraction(base_abstraction) => {
+                            //     let param = base_abstraction.param.clone();
+                            //     let value = params[0].clone();
+                            //     let mut context = Context::new();
+                            //     let mut domain = Domain::new();
+                            //     context.push(param.clone(), value.clone());
+                            //     domain.push(param.clone());
+                            //     evaluate(
+                            //         base_abstraction.expression.clone(),
+                            //         e,
+                            //         k.clone(),
+                            //         init_d.clone(),
+                            //         d.clone(),
+                            //         c,
+                            //     )
+                            // }
                             Value::Identifier(op) => {
                                 // lookup primitive operator & apply
                                 match op.as_ref() {
@@ -345,8 +344,16 @@ pub fn evaluate(
             }
         }
 
-        Expression::BaseAbstraction(base_expr) => {
-            Either::Left(Value::BaseAbstraction(base_expr.clone()))
+        Expression::BaseAbstraction(base_abstraction) => {
+            Either::Left(Value::BaseAbstraction(base_abstraction.clone()))
+        }
+
+        Expression::ValueAbstraction(value_abstraction) => {
+            Either::Left(Value::ValueAbstraction(value_abstraction.clone()))
+        }
+
+        Expression::NameAbstraction(name_abstraction) => {
+            Either::Left(Value::NameAbstraction(name_abstraction.clone()))
         }
 
         Expression::IntensionBuilder(intens_expr) => {
@@ -362,8 +369,8 @@ pub fn evaluate(
                     Either::Right(d) => missing = missing.union(d).clone(),
                 }
             }
-            println!("evaluated dimensions = {:?}", dimensions.clone());
-            println!("K = {:?}", k.clone().restrict(dimensions.clone()));
+            // println!("evaluated dimensions = {:?}", dimensions.clone());
+            // println!("K = {:?}", k.clone().restrict(dimensions.clone()));
             if missing.len() > 0 {
                 Either::Right(missing)
             } else {
@@ -401,7 +408,7 @@ pub fn evaluate(
         }
 
         Expression::Identifier(id) => {
-            println!("{} @ {}", id.clone(), k.clone().restrict(d.clone()).print());
+            // println!("{} @ {}", id.clone(), k.clone().restrict(d.clone()).print());
             evaluate_id1(
                 id.clone(),
                 e,
