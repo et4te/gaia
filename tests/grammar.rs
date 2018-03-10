@@ -89,11 +89,20 @@ fn test_query() {
 }
 
 #[test]
-fn test_let() {
+fn test_variable_declaration() {
     assert!(variable_declaration("x = 0").is_ok());
     assert!(variable_declaration("x = x + y").is_ok());
     assert!(variable_declaration("A [x <- 0, y <- 0] = 0").is_ok());
     //println!("{:?}", variable_declaration("let x = x + y").is_ok());
+}
+
+#[test]
+fn test_function_declaration() {
+    assert!(function_declaration("f.d = 0").is_ok());
+    println!("{:?}", function_declaration("f.d = 0"));
+
+    assert!(function_declaration("f.d X = X").is_ok());
+    println!("{:?}", function_declaration("f.d X = X"));
 }
 
 #[test]
