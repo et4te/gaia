@@ -40,7 +40,7 @@ impl Value {
     pub fn expect_integer(&self) -> u32 {
         match self {
             &Value::Literal(Literal::Int32(n)) => n,
-            _ => panic!("Expected u32."),
+            other => panic!("Expected u32 but here found {:?}", other),
         }
     }
 
@@ -48,7 +48,7 @@ impl Value {
         match self {
             &Value::Dimension(ref di) => *di.clone(),
 
-            _ => panic!("Expected dimension."),
+            other => panic!("Expected dimension but here found {:?}", other),
         }
     }
 
