@@ -26,23 +26,40 @@ type Identifier = String;
 pub fn evaluate(expr: L1Expression) -> Either<Value, Domain> {
     let mut c = Cache::new();
     let mut e = Environment::new();
+
+    // Define VM opcodes
+
+    // Context Idexing
+    //   #.t
+    e.define("#".to_string(), Expression::Operator("#".to_string()));
+    // Context Navigation
+    //   X @ [t <- 0]
+    e.define("@".to_string(), Expression::Operator("@".to_string()));
+    e.define("==".to_string(), Expression::Operator("==".to_string()));
+    e.define("/=".to_string(), Expression::Operator("%".to_string()));
+    e.define("%".to_string(), Expression::Operator("%".to_string()));
+    e.define("^".to_string(), Expression::Operator("^".to_string()));
     e.define("/".to_string(), Expression::Operator("/".to_string()));
     e.define("*".to_string(), Expression::Operator("*".to_string()));
     e.define("+".to_string(), Expression::Operator("+".to_string()));
     e.define("-".to_string(), Expression::Operator("-".to_string()));
+    e.define("<".to_string(), Expression::Operator(">=".to_string()));
     e.define("<=".to_string(), Expression::Operator("<=".to_string()));
     e.define(">".to_string(), Expression::Operator(">".to_string()));
+    e.define(">=".to_string(), Expression::Operator(">=".to_string()));
+
     let mut k = Context::new();
     let mut d = Domain::new();
     let mut dimensions = HashMap::new();
+    let mut names = HashSet::new();
     let q_dimensions = HashSet::new();
-    let (x, q_dims) = transform_l1_dimensions(expr, &mut dimensions, 0, q_dimensions);
+    let (x, q_dims) = transform_l1_dimensions(expr, &mut dimensions, &mut names, 0, q_dimensions);
     for q_dim in q_dims.clone() {
         k.push(q_dim.clone(), Value::Literal(Literal::Int32(0)));
         d.push(q_dim);
     }
-    //println!("K :: {}", k.clone().print());
-    //println!("D :: {}\n", d.clone().print());
+    // println!("K :: {}", k.clone().print());
+    // println!("D :: {}\n", d.clone().print());
     evaluator::evaluate(x, &mut e, k.clone(), d.clone(), d.clone(), &mut c)
 }
 
@@ -56,7 +73,7 @@ pub fn generate_dimensional_map(
     for parameter in parameters {
         let id = parameter.expect_identifier();
         let di = Dimension {
-            i: i.clone(),
+            i: 0, // change this to p
             v: Value::Identifier(id.clone()),
         };
         i = i + 1;
@@ -65,6 +82,15 @@ pub fn generate_dimensional_map(
     }
 
     (dimensions.clone(), dimensional_map.clone())
+}
+
+pub fn generate_name_map(parameters: Vec<L1Expression>) -> HashSet<Identifier> {
+    let mut names = HashSet::new();
+    for parameter in parameters {
+        let id = parameter.expect_identifier();
+        names.insert(id.clone());
+    }
+    names
 }
 
 pub fn maybe_name_abstraction_from_fun_declaration(
@@ -188,6 +214,7 @@ pub fn abstraction_from_l1(
     fun_declaration: L1FunctionDeclaration,
     abstraction: L1Expression,
     dimensions: &mut HashMap<Identifier, Dimension>,
+    names: &mut HashSet<Identifier>,
     q: u32,
     q_dimensions: HashSet<Dimension>,
 ) -> (Expression, HashSet<Dimension>) {
@@ -201,29 +228,30 @@ pub fn abstraction_from_l1(
                         generate_dimensional_map(value_abstraction.formal_parameters.clone());
                     match value_abstraction.body {
                         L1Expression::NameAbstraction(name_abstraction) => {
-                            let (name_dimensions, name_dimensional_map) =
-                                generate_dimensional_map(
-                                    name_abstraction.formal_parameters.clone(),
-                                );
+                            let name_map =
+                                generate_name_map(name_abstraction.formal_parameters.clone());
+                            let (name_dimensions, _) = generate_dimensional_map(
+                                name_abstraction.formal_parameters.clone(),
+                            );
                             // Merge all dimensional maps and transform the L1Expression body to Expression.
                             let dimensional_map =
                                 merge(base_dimensional_map, value_dimensional_map);
-                            let dimensional_map = merge(dimensional_map, name_dimensional_map);
                             let mut dimensional_map = merge(dimensional_map, dimensions.clone());
+                            // Add the name_dimensions to the name_map in order to substitute names for intension applications.
+                            let mut names: HashSet<Identifier> =
+                                names.union(&name_map).cloned().collect();
                             let (body, q_dimensions) = transform_l1_dimensions(
                                 name_abstraction.body,
                                 &mut dimensional_map,
+                                &mut names,
                                 q,
                                 q_dimensions.clone(),
                             );
                             let base_abstraction = BaseAbstraction {
                                 dimensions: base_dimensions,
                                 body: Expression::ValueAbstraction(Box::new(ValueAbstraction {
-                                    dimensions: value_dimensions,
-                                    body: Expression::NameAbstraction(Box::new(NameAbstraction {
-                                        dimensions: name_dimensions,
-                                        body: body,
-                                    })),
+                                    dimensions: [value_dimensions, name_dimensions].concat(),
+                                    body: body,
                                 })),
                             };
                             (
@@ -235,9 +263,11 @@ pub fn abstraction_from_l1(
                             let dimensional_map =
                                 merge(base_dimensional_map, value_dimensional_map);
                             let mut dimensional_map = merge(dimensional_map, dimensions.clone());
+                            let mut names = names;
                             let (body, q_dimensions) = transform_l1_dimensions(
                                 value_abstraction.body,
                                 &mut dimensional_map,
+                                &mut names,
                                 q,
                                 q_dimensions.clone(),
                             );
@@ -256,19 +286,22 @@ pub fn abstraction_from_l1(
                     }
                 }
                 L1Expression::NameAbstraction(name_abstraction) => {
-                    let (name_dimensions, name_dimensional_map) =
+                    // Merge together the dimensions.
+                    let name_map = generate_name_map(name_abstraction.formal_parameters.clone());
+                    let (name_dimensions, _) =
                         generate_dimensional_map(name_abstraction.formal_parameters.clone());
-                    let dimensional_map = merge(base_dimensional_map, name_dimensional_map);
-                    let mut dimensional_map = merge(dimensional_map, dimensions.clone());
+                    let mut dimensional_map = merge(base_dimensional_map, dimensions.clone());
+                    let mut names: HashSet<Identifier> = names.union(&name_map).cloned().collect();
                     let (body, q_dimensions) = transform_l1_dimensions(
                         name_abstraction.body,
                         &mut dimensional_map,
+                        &mut names,
                         q,
                         q_dimensions.clone(),
                     );
                     let base_abstraction = BaseAbstraction {
                         dimensions: base_dimensions,
-                        body: Expression::NameAbstraction(Box::new(NameAbstraction {
+                        body: Expression::ValueAbstraction(Box::new(ValueAbstraction {
                             dimensions: name_dimensions,
                             body: body,
                         })),
@@ -280,9 +313,11 @@ pub fn abstraction_from_l1(
                 }
                 _ => {
                     let mut dimensional_map = merge(base_dimensional_map, dimensions.clone());
+                    let mut names = names;
                     let (body, q_dimensions) = transform_l1_dimensions(
                         base_abstraction.body,
                         &mut dimensional_map,
+                        &mut names,
                         q,
                         q_dimensions.clone(),
                     );
@@ -302,23 +337,22 @@ pub fn abstraction_from_l1(
                 generate_dimensional_map(value_abstraction.formal_parameters.clone());
             match value_abstraction.body {
                 L1Expression::NameAbstraction(name_abstraction) => {
-                    let (name_dimensions, name_dimensional_map) =
+                    let name_map = generate_name_map(name_abstraction.formal_parameters.clone());
+                    let (name_dimensions, _) =
                         generate_dimensional_map(name_abstraction.formal_parameters.clone());
                     // Merge all dimensional maps and transform the L1Expression body to Expression.
-                    let dimensional_map = merge(value_dimensional_map, name_dimensional_map);
-                    let mut dimensional_map = merge(dimensional_map, dimensions.clone());
+                    let mut dimensional_map = merge(value_dimensional_map, dimensions.clone());
+                    let mut names: HashSet<Identifier> = names.union(&name_map).cloned().collect();
                     let (body, q_dimensions) = transform_l1_dimensions(
                         name_abstraction.body,
                         &mut dimensional_map,
+                        &mut names,
                         q,
                         q_dimensions.clone(),
                     );
                     let value_abstraction = ValueAbstraction {
-                        dimensions: value_dimensions,
-                        body: Expression::NameAbstraction(Box::new(NameAbstraction {
-                            dimensions: name_dimensions,
-                            body: body,
-                        })),
+                        dimensions: [value_dimensions, name_dimensions].concat(),
+                        body: body,
                     };
                     (
                         Expression::ValueAbstraction(Box::new(value_abstraction)),
@@ -327,9 +361,11 @@ pub fn abstraction_from_l1(
                 }
                 _ => {
                     let mut dimensional_map = merge(value_dimensional_map, dimensions.clone());
+                    let mut names = names;
                     let (body, q_dimensions) = transform_l1_dimensions(
                         value_abstraction.body,
                         &mut dimensional_map,
+                        &mut names,
                         q,
                         q_dimensions.clone(),
                     );
@@ -345,21 +381,24 @@ pub fn abstraction_from_l1(
             }
         }
         L1Expression::NameAbstraction(name_abstraction) => {
-            let (name_dimensions, name_dimensional_map) =
+            let name_map = generate_name_map(name_abstraction.formal_parameters.clone());
+            let mut names: HashSet<Identifier> = names.union(&name_map).cloned().collect();
+            let (name_dimensions, _) =
                 generate_dimensional_map(name_abstraction.formal_parameters.clone());
-            let mut dimensional_map = merge(name_dimensional_map, dimensions.clone());
+            let mut dimensions = dimensions;
             let (body, q_dimensions) = transform_l1_dimensions(
                 name_abstraction.body,
-                &mut dimensional_map,
+                &mut dimensions,
+                &mut names,
                 q,
                 q_dimensions.clone(),
             );
-            let name_abstraction = NameAbstraction {
+            let value_abstraction = ValueAbstraction {
                 dimensions: name_dimensions,
                 body: body,
             };
             (
-                Expression::NameAbstraction(Box::new(name_abstraction)),
+                Expression::ValueAbstraction(Box::new(value_abstraction)),
                 q_dimensions,
             )
         }
@@ -370,6 +409,7 @@ pub fn abstraction_from_l1(
 pub fn transform_l1_dimensions(
     expr: L1Expression,
     dimensions: &mut HashMap<Identifier, Dimension>,
+    names: &mut HashSet<Identifier>,
     q: u32,
     q_dimensions: HashSet<Dimension>,
 ) -> (Expression, HashSet<Dimension>) {
@@ -382,7 +422,8 @@ pub fn transform_l1_dimensions(
             let mut r = vec![];
             let mut q_dimensions = q_dimensions;
             for expr in expr_vec {
-                let (vi, q_dims) = transform_l1_dimensions(expr, dimensions, q, q_dimensions);
+                let (vi, q_dims) =
+                    transform_l1_dimensions(expr, dimensions, names, q, q_dimensions);
                 q_dimensions = q_dims;
                 r.push(vi);
             }
@@ -394,9 +435,9 @@ pub fn transform_l1_dimensions(
             let mut q_dimensions: HashSet<Dimension> = q_dimensions;
             for tuple in tuple_expr {
                 let (lhs, q_dims_lhs) =
-                    transform_l1_dimensions(tuple.lhs, dimensions, q, q_dimensions.clone());
+                    transform_l1_dimensions(tuple.lhs, dimensions, names, q, q_dimensions.clone());
                 let (rhs, q_dims_rhs) =
-                    transform_l1_dimensions(tuple.rhs, dimensions, q, q_dimensions.clone());
+                    transform_l1_dimensions(tuple.rhs, dimensions, names, q, q_dimensions.clone());
                 q_dimensions = q_dims_lhs.union(&q_dims_rhs).cloned().collect();
                 let tup = TupleExpression { lhs: lhs, rhs: rhs };
                 r.push(tup)
@@ -408,11 +449,13 @@ pub fn transform_l1_dimensions(
             let mut r: Vec<Expression> = vec![];
             let mut q_dimensions = q_dimensions;
             let op = application_expr[0].clone();
-            let (op, q_dims1) = transform_l1_dimensions(op, dimensions, q, q_dimensions.clone());
+            let (op, q_dims1) =
+                transform_l1_dimensions(op, dimensions, names, q, q_dimensions.clone());
             for i in 1..application_expr.len() {
                 let (arg, q_dims2) = transform_l1_dimensions(
                     application_expr[i].clone(),
                     dimensions,
+                    names,
                     q,
                     q_dims1.clone(),
                 );
@@ -429,17 +472,24 @@ pub fn transform_l1_dimensions(
             let (l1_condition, q_dims1) = transform_l1_dimensions(
                 if_expr.condition.clone(),
                 dimensions,
+                names,
                 q,
                 q_dimensions.clone(),
             );
             let (l1_consequent, q_dims2) = transform_l1_dimensions(
                 if_expr.consequent.clone(),
                 dimensions,
+                names,
                 q,
                 q_dimensions.clone(),
             );
-            let (l1_alternate, q_dims3) =
-                transform_l1_dimensions(if_expr.alternate, dimensions, q, q_dimensions.clone());
+            let (l1_alternate, q_dims3) = transform_l1_dimensions(
+                if_expr.alternate,
+                dimensions,
+                names,
+                q,
+                q_dimensions.clone(),
+            );
             let l1_if = IfExpression {
                 condition: l1_condition,
                 consequent: l1_consequent,
@@ -455,12 +505,13 @@ pub fn transform_l1_dimensions(
             let mut e = Environment::new();
             let mut q_dimensions = q_dimensions;
             for (id, expr) in wv.rhs.0.clone() {
-                let (expr, q_dims) = transform_l1_dimensions(expr, dimensions, q, q_dimensions);
+                let (expr, q_dims) =
+                    transform_l1_dimensions(expr, dimensions, names, q, q_dimensions);
                 q_dimensions = q_dims;
                 e.define(id, expr.clone());
             }
             let (lhs, q_dims) =
-                transform_l1_dimensions(wv.lhs.clone(), dimensions, q, q_dimensions);
+                transform_l1_dimensions(wv.lhs.clone(), dimensions, names, q, q_dimensions);
             let wv = WhereVarExpression {
                 lhs: lhs,
                 rhs: e.clone(),
@@ -472,36 +523,311 @@ pub fn transform_l1_dimensions(
             let expr = *expr.clone();
             // let expr = Box::into_raw(expr);
             // let expr = unsafe { (*expr).clone() };
-            let (expr, q_dims) = transform_l1_dimensions(expr.clone(), dimensions, q, q_dimensions);
+            let (expr, q_dims) =
+                transform_l1_dimensions(expr.clone(), dimensions, names, q, q_dimensions);
             (Expression::Query(Box::new(expr)), q_dims)
         }
 
         L1Expression::Perturb(perturb_expr) => {
             let lhs = perturb_expr.clone().lhs;
             let rhs = perturb_expr.rhs;
-            let (lhs, q_dims1) = transform_l1_dimensions(lhs, dimensions, q, q_dimensions.clone());
-            let (rhs, q_dims2) = transform_l1_dimensions(rhs, dimensions, q, q_dimensions);
+            let (lhs, q_dims1) =
+                transform_l1_dimensions(lhs, dimensions, names, q, q_dimensions.clone());
+            let (rhs, q_dims2) = transform_l1_dimensions(rhs, dimensions, names, q, q_dimensions);
             let q_dims = q_dims1.union(&q_dims2).cloned().collect();
             let perturb_expr = PerturbExpression { lhs: lhs, rhs: rhs };
             (Expression::Perturb(Box::new(perturb_expr)), q_dims)
         }
 
-        // L1Expression::BaseAbstraction(base_abstraction) => {
-        //    // Generate dimensions from parameters
-        //    base_abstraction.
-        //    let di = Dimension {
-        //        i: 0,
-        //        v: Value::Identifier(base_abstraction.id.clone()),
-        //    };
-        //    let (expr, q_dims) =
-        //        transform_l1_dimensions(base_abstraction.body, dimensions, q, q_dimensions.clone());
-        //    let base_abstr = BaseAbstraction {
-        //        param: di.clone(),
-        //        dimensions: vec![],
-        //        body: expr,
-        //    };
-        //    (Expression::BaseAbstraction(Box::new(base_abstr)), q_dims)
-        // }
+        L1Expression::FunctionApplication(function_application_l1) => {
+            // println!("lhs = {:?}", function_application_l1.lhs.clone());
+            // Transform the lhs
+            let (expr, _) = transform_l1_dimensions(
+                function_application_l1.lhs.clone(),
+                dimensions,
+                names,
+                q,
+                q_dimensions.clone(),
+            );
+            // println!("expr = {:?}", expr.clone());
+            let mut base_args = vec![];
+            for i in 0..function_application_l1.base_args.len() {
+                let (base_arg, _) = transform_l1_dimensions(
+                    function_application_l1.base_args[i].clone(),
+                    dimensions,
+                    names,
+                    q,
+                    q_dimensions.clone(),
+                );
+                base_args.push(base_arg);
+            }
+            let mut value_args = vec![];
+            for i in 0..function_application_l1.value_args.len() {
+                let (value_arg, _) = transform_l1_dimensions(
+                    function_application_l1.value_args[i].clone(),
+                    dimensions,
+                    names,
+                    q,
+                    q_dimensions.clone(),
+                );
+                value_args.push(value_arg);
+            }
+            for i in 0..function_application_l1.name_args.len() {
+                let (value_arg, _) = transform_l1_dimensions(
+                    function_application_l1.name_args[i].clone(),
+                    dimensions,
+                    names,
+                    q,
+                    q_dimensions.clone(),
+                );
+                let intension = IntensionExpression {
+                    domain: vec![],
+                    value: value_arg.clone(),
+                };
+                let arg = Expression::IntensionBuilder(Box::new(intension));
+                value_args.push(arg)
+            }
+            let function_application = FunctionApplication {
+                id: expr.as_identifier(),
+                base_args: base_args,
+                value_args: value_args,
+            };
+            (
+                Expression::FunctionApplication(Box::new(function_application)),
+                q_dimensions,
+            )
+        }
+
+        L1Expression::BaseAbstraction(base_abstraction_l1) => {
+            // Generate dimensions from parameters
+            let mut i = 0;
+            let mut dims = vec![];
+            for param in base_abstraction_l1.formal_parameters.clone() {
+                let id = param.clone().expect_identifier();
+                let di = Dimension {
+                    i: i.clone(),
+                    v: Value::Identifier(id.clone()),
+                };
+                dimensions.insert(id.clone(), di.clone());
+                dims.push(di);
+                i += 1;
+            }
+            let (expr, q_dims) = transform_l1_dimensions(
+                base_abstraction_l1.body,
+                dimensions,
+                names,
+                q,
+                q_dimensions.clone(),
+            );
+            let base_abstr = BaseAbstraction {
+                dimensions: dims.clone(),
+                body: expr,
+            };
+            (Expression::BaseAbstraction(Box::new(base_abstr)), q_dims)
+        }
+
+        L1Expression::BaseApplication(base_application_l1) => {
+            let (base_abstraction, _) = transform_l1_dimensions(
+                base_application_l1.lhs.clone(),
+                dimensions,
+                names,
+                q,
+                q_dimensions.clone(),
+            );
+            let mut base_application = BaseApplication {
+                lhs: base_abstraction,
+                args: vec![],
+            };
+
+            loop {
+                match base_application_l1.rhs.clone() {
+                    L1Expression::BaseApplication(base_application_l1) => {
+                        let (arg, _) = transform_l1_dimensions(
+                            base_application_l1.rhs,
+                            dimensions,
+                            names,
+                            q,
+                            q_dimensions.clone(),
+                        );
+                        base_application.args.push(arg);
+                        continue;
+                    }
+
+                    other => {
+                        let (arg, _) = transform_l1_dimensions(
+                            other,
+                            dimensions,
+                            names,
+                            q,
+                            q_dimensions.clone(),
+                        );
+                        base_application.args.push(arg);
+                        break;
+                    }
+                }
+            }
+
+            (
+                Expression::BaseApplication(Box::new(base_application)),
+                q_dimensions,
+            )
+        }
+
+        L1Expression::ValueAbstraction(value_abstraction_l1) => {
+            // Generate dimensions from parameters
+            let mut i = 0;
+            let mut dims = vec![];
+            for param in value_abstraction_l1.formal_parameters.clone() {
+                let id = param.clone().expect_identifier();
+                let di = Dimension {
+                    i: 0, // i.clone(),
+                    v: Value::Identifier(id.clone()),
+                };
+                dimensions.insert(id.clone(), di.clone());
+                dims.push(di);
+                i += 1;
+            }
+            let (expr, q_dims) = transform_l1_dimensions(
+                value_abstraction_l1.body,
+                dimensions,
+                names,
+                q,
+                q_dimensions.clone(),
+            );
+            let value_abstr = ValueAbstraction {
+                dimensions: dims.clone(),
+                body: expr,
+            };
+            (Expression::ValueAbstraction(Box::new(value_abstr)), q_dims)
+        }
+
+        L1Expression::ValueApplication(value_application_l1) => {
+            let (value_abstraction, _) = transform_l1_dimensions(
+                value_application_l1.lhs.clone(),
+                dimensions,
+                names,
+                q,
+                q_dimensions.clone(),
+            );
+            let mut value_application = ValueApplication {
+                lhs: value_abstraction,
+                args: vec![],
+            };
+
+            loop {
+                match value_application_l1.rhs.clone() {
+                    L1Expression::ValueApplication(value_application_l1) => {
+                        let (arg, _) = transform_l1_dimensions(
+                            value_application_l1.rhs,
+                            dimensions,
+                            names,
+                            q,
+                            q_dimensions.clone(),
+                        );
+                        value_application.args.push(arg);
+                        continue;
+                    }
+
+                    other => {
+                        let (arg, _) = transform_l1_dimensions(
+                            other,
+                            dimensions,
+                            names,
+                            q,
+                            q_dimensions.clone(),
+                        );
+                        value_application.args.push(arg);
+                        break;
+                    }
+                }
+            }
+
+            (
+                Expression::ValueApplication(Box::new(value_application)),
+                q_dimensions,
+            )
+        }
+
+        L1Expression::NameAbstraction(name_abstraction_l1) => {
+            // Generate dimensions from parameters
+            let mut i = 0;
+            let mut dims = vec![];
+            for param in name_abstraction_l1.formal_parameters.clone() {
+                let id = param.clone().expect_identifier();
+                let di = Dimension {
+                    i: 0, // i.clone(),
+                    v: Value::Identifier(id.clone()),
+                };
+                names.insert(id.clone());
+                dims.push(di);
+                i += 1;
+            }
+            let (expr, q_dims) = transform_l1_dimensions(
+                name_abstraction_l1.body,
+                dimensions,
+                names,
+                q,
+                q_dimensions.clone(),
+            );
+            let value_abstr = ValueAbstraction {
+                dimensions: dims.clone(),
+                body: expr,
+            };
+            (Expression::ValueAbstraction(Box::new(value_abstr)), q_dims)
+        }
+
+        L1Expression::NameApplication(name_application_l1) => {
+            let (value_abstraction, _) = transform_l1_dimensions(
+                name_application_l1.lhs.clone(),
+                dimensions,
+                names,
+                q,
+                q_dimensions.clone(),
+            );
+            let mut value_application = ValueApplication {
+                lhs: value_abstraction,
+                args: vec![],
+            };
+
+            loop {
+                match name_application_l1.rhs.clone() {
+                    L1Expression::NameApplication(name_application_l1) => {
+                        let (arg, _) = transform_l1_dimensions(
+                            name_application_l1.rhs,
+                            dimensions,
+                            names,
+                            q,
+                            q_dimensions.clone(),
+                        );
+                        let intension = IntensionExpression {
+                            domain: vec![],
+                            value: arg.clone(),
+                        };
+                        let expression = Expression::IntensionBuilder(Box::new(intension));
+                        value_application.args.push(expression);
+                        continue;
+                    }
+
+                    other => {
+                        let (arg, _) = transform_l1_dimensions(
+                            other,
+                            dimensions,
+                            names,
+                            q,
+                            q_dimensions.clone(),
+                        );
+                        value_application.args.push(arg);
+                        break;
+                    }
+                }
+            }
+
+            (
+                Expression::ValueApplication(Box::new(value_application)),
+                q_dimensions,
+            )
+        }
+
         L1Expression::IntensionBuilder(intens_expr) => {
             let mut r = vec![];
             let mut q_domain = q_dimensions;
@@ -512,7 +838,8 @@ pub fn transform_l1_dimensions(
             //    q_domain.clone()
             // );
             for dim in domain {
-                let (di, q_dims) = transform_l1_dimensions(dim, dimensions, q, q_domain.clone());
+                let (di, q_dims) =
+                    transform_l1_dimensions(dim, dimensions, names, q, q_domain.clone());
                 q_domain = q_dims;
                 r.push(di);
             }
@@ -521,8 +848,13 @@ pub fn transform_l1_dimensions(
             //     dimensions.clone(),
             //     q_domain.clone()
             // );
-            let (e0, q_dims) =
-                transform_l1_dimensions(intens_expr.value.clone(), dimensions, q, q_domain.clone());
+            let (e0, q_dims) = transform_l1_dimensions(
+                intens_expr.value.clone(),
+                dimensions,
+                names,
+                q,
+                q_domain.clone(),
+            );
             let intens_expr = IntensionExpression {
                 domain: r.clone(),
                 value: e0,
@@ -532,7 +864,7 @@ pub fn transform_l1_dimensions(
 
         L1Expression::IntensionApplication(intens_app) => {
             let (expr, q_dims) =
-                transform_l1_dimensions(*intens_app, dimensions, q, q_dimensions.clone());
+                transform_l1_dimensions(*intens_app, dimensions, names, q, q_dimensions.clone());
             (Expression::IntensionApplication(Box::new(expr)), q_dims)
         }
 
@@ -542,8 +874,19 @@ pub fn transform_l1_dimensions(
                 let di = dimensions.get(&id).unwrap();
                 (Expression::Dimension(di.clone()), q_dimensions)
             } else {
-                // id is a free variable
-                (Expression::Identifier(id), q_dimensions)
+                if names.contains(&id) {
+                    let di = Dimension {
+                        i: 0,
+                        v: Value::Identifier(id.clone()),
+                    };
+                    (
+                        Expression::IntensionApplication(Box::new(Expression::Dimension(di.clone()))),
+                        q_dimensions,
+                    )
+                } else {
+                    // id is a free variable
+                    (Expression::Identifier(id), q_dimensions)
+                }
             }
         }
 
@@ -566,13 +909,15 @@ pub fn transform_l1_dimensions(
 
                 // Transform expressions according to updated dimensions
                 let expr = dimension_expr.rhs.clone();
-                let (expr, q_dims) = transform_l1_dimensions(expr, dimensions, q, q_dimensions);
+                let (expr, q_dims) =
+                    transform_l1_dimensions(expr, dimensions, names, q, q_dimensions);
                 q_dimensions = q_dims;
                 let dim_expr = DimensionExpression { lhs: di, rhs: expr };
                 dimension_exprs.push(dim_expr);
             }
 
-            let (lhs, q_dims) = transform_l1_dimensions(lhs, dimensions, q + 1, q_dimensions);
+            let (lhs, q_dims) =
+                transform_l1_dimensions(lhs, dimensions, names, q + 1, q_dimensions);
             let mut q_dimensions = q_dims;
             let dim_q = Dimension {
                 i: q,
@@ -618,12 +963,13 @@ pub fn transform_l1_dimensions(
                 *fun_declaration,
                 l1_abstraction.clone(),
                 dimensions,
+                names,
                 q,
                 q_dimensions,
             )
         }
 
-        _ => panic!("Unrecognised expression"),
+        other => panic!("Unrecognised expression {:?}", other),
     }
 }
 
@@ -741,6 +1087,8 @@ pub fn print_expression(expr: Expression, indent: u32) -> String {
             format!("{} {} {}", lhs, "@".bright_white(), rhs)
         }
 
+        Expression::FunctionApplication(function_application) => format!("@function_application@"),
+
         Expression::BaseAbstraction(base_abstraction) => {
             let mut s = "(λb ".bright_white().to_string();
             for param in base_abstraction.dimensions.clone() {
@@ -751,6 +1099,26 @@ pub fn print_expression(expr: Expression, indent: u32) -> String {
                 s,
                 print_expression(base_abstraction.body.clone(), indent)
             )
+        }
+
+        Expression::BaseApplication(base_application) => {
+            let op = print_expression(base_application.lhs.clone(), indent);
+            let mut args = "".to_string();
+            for i in 0..base_application.args.len() {
+                if i == 0 {
+                    args = format!(
+                        "{}",
+                        print_expression(base_application.args[i].clone(), indent)
+                    );
+                } else {
+                    args = format!(
+                        "{} {}",
+                        args,
+                        print_expression(base_application.args[i].clone(), indent)
+                    );
+                }
+            }
+            format!("{}({})", op.yellow(), args)
         }
 
         Expression::ValueAbstraction(value_abstraction) => {
@@ -765,16 +1133,24 @@ pub fn print_expression(expr: Expression, indent: u32) -> String {
             )
         }
 
-        Expression::NameAbstraction(name_abstraction) => {
-            let mut s = "(λn ".bright_white().to_string();
-            for param in name_abstraction.dimensions.clone() {
-                s = format!("{}{} ->", s, print_dimension(param));
+        Expression::ValueApplication(value_application) => {
+            let op = print_expression(value_application.lhs.clone(), indent);
+            let mut args = "".to_string();
+            for i in 0..value_application.args.len() {
+                if i == 0 {
+                    args = format!(
+                        "{}",
+                        print_expression(value_application.args[i].clone(), indent)
+                    );
+                } else {
+                    args = format!(
+                        "{} {}",
+                        args,
+                        print_expression(value_application.args[i].clone(), indent)
+                    );
+                }
             }
-            format!(
-                "{} {})",
-                s,
-                print_expression(name_abstraction.body.clone(), indent)
-            )
+            format!("{}({})", op.yellow(), args)
         }
 
         Expression::IntensionBuilder(intens_expr) => {

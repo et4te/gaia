@@ -29,6 +29,7 @@ pub struct L1BaseAbstraction {
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct BaseAbstraction {
+    // pub formal_parameters: Vec<Identifier>,
     pub dimensions: Vec<Dimension>,
     pub body: Expression,
 }
@@ -39,6 +40,12 @@ pub struct L1BaseApplication {
     pub rhs: L1Expression,
 }
 
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+pub struct BaseApplication {
+    pub lhs: Expression,
+    pub args: Vec<Expression>,
+}
+
 #[derive(PartialEq, Clone, Debug)]
 pub struct L1ValueAbstraction {
     pub formal_parameters: Vec<L1Expression>,
@@ -47,6 +54,7 @@ pub struct L1ValueAbstraction {
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct ValueAbstraction {
+    // pub formal_parameters: Vec<Identifier>,
     pub dimensions: Vec<Dimension>,
     pub body: Expression,
 }
@@ -55,6 +63,12 @@ pub struct ValueAbstraction {
 pub struct L1ValueApplication {
     pub lhs: L1Expression,
     pub rhs: L1Expression,
+}
+
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+pub struct ValueApplication {
+    pub lhs: Expression,
+    pub args: Vec<Expression>,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -72,7 +86,13 @@ pub struct NameAbstraction {
 #[derive(PartialEq, Clone, Debug)]
 pub struct L1NameApplication {
     pub lhs: L1Expression,
-    pub rhs: Identifier,
+    pub rhs: L1Expression,
+}
+
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+pub struct NameApplication {
+    pub lhs: Expression,
+    pub args: Vec<Expression>,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -165,12 +185,109 @@ pub struct L1DeclarationExpression {
 }
 
 #[derive(PartialEq, Clone, Debug)]
+pub struct L1FunctionApplication {
+    pub lhs: L1Expression,
+    pub base_args: Vec<L1Expression>,
+    pub value_args: Vec<L1Expression>,
+    pub name_args: Vec<L1Expression>,
+}
+
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+pub struct FunctionApplication {
+    pub id: Identifier,
+    pub base_args: Vec<Expression>,
+    pub value_args: Vec<Expression>,
+}
+
+#[derive(PartialEq, Clone, Debug)]
 pub struct L1FunctionDeclaration {
     pub name: L1Expression,
     pub base_parameters: Vec<L1Expression>,
     pub value_parameters: Vec<L1Expression>,
     pub name_parameters: Vec<L1Expression>,
     pub body: L1Expression,
+}
+
+impl L1FunctionDeclaration {
+    pub fn as_abstraction(&self) -> L1Expression {
+        if self.base_parameters.len() > 0 {
+            if self.value_parameters.len() > 0 {
+                if self.name_parameters.len() > 0 {
+                    let name_abstraction = L1NameAbstraction {
+                        formal_parameters: self.name_parameters.clone(),
+                        body: self.body.clone(),
+                    };
+                    let value_abstraction = L1ValueAbstraction {
+                        formal_parameters: self.value_parameters.clone(),
+                        body: L1Expression::NameAbstraction(Box::new(name_abstraction.clone())),
+                    };
+                    let base_abstraction = L1BaseAbstraction {
+                        formal_parameters: self.base_parameters.clone(),
+                        body: L1Expression::ValueAbstraction(Box::new(value_abstraction.clone())),
+                    };
+                    L1Expression::BaseAbstraction(Box::new(base_abstraction))
+                } else {
+                    let value_abstraction = L1ValueAbstraction {
+                        formal_parameters: self.value_parameters.clone(),
+                        body: self.body.clone(),
+                    };
+                    let base_abstraction = L1BaseAbstraction {
+                        formal_parameters: self.base_parameters.clone(),
+                        body: L1Expression::ValueAbstraction(Box::new(value_abstraction.clone())),
+                    };
+                    L1Expression::BaseAbstraction(Box::new(base_abstraction))
+                }
+            } else {
+                if self.name_parameters.len() > 0 {
+                    let name_abstraction = L1NameAbstraction {
+                        formal_parameters: self.name_parameters.clone(),
+                        body: self.body.clone(),
+                    };
+                    let base_abstraction = L1BaseAbstraction {
+                        formal_parameters: self.base_parameters.clone(),
+                        body: L1Expression::NameAbstraction(Box::new(name_abstraction.clone())),
+                    };
+                    L1Expression::BaseAbstraction(Box::new(base_abstraction))
+                } else {
+                    let base_abstraction = L1BaseAbstraction {
+                        formal_parameters: self.base_parameters.clone(),
+                        body: self.body.clone(),
+                    };
+                    L1Expression::BaseAbstraction(Box::new(base_abstraction))
+                }
+            }
+        } else {
+            if self.value_parameters.len() > 0 {
+                if self.name_parameters.len() > 0 {
+                    let name_abstraction = L1NameAbstraction {
+                        formal_parameters: self.name_parameters.clone(),
+                        body: self.body.clone(),
+                    };
+                    let value_abstraction = L1ValueAbstraction {
+                        formal_parameters: self.value_parameters.clone(),
+                        body: L1Expression::NameAbstraction(Box::new(name_abstraction.clone())),
+                    };
+                    L1Expression::ValueAbstraction(Box::new(value_abstraction))
+                } else {
+                    let value_abstraction = L1ValueAbstraction {
+                        formal_parameters: self.value_parameters.clone(),
+                        body: self.body.clone(),
+                    };
+                    L1Expression::ValueAbstraction(Box::new(value_abstraction))
+                }
+            } else {
+                if self.name_parameters.len() > 0 {
+                    let name_abstraction = L1NameAbstraction {
+                        formal_parameters: self.name_parameters.clone(),
+                        body: self.body.clone(),
+                    };
+                    L1Expression::NameAbstraction(Box::new(name_abstraction))
+                } else {
+                    self.body.clone()
+                }
+            }
+        }
+    }
 }
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
@@ -195,6 +312,7 @@ pub enum L1Expression {
     FunctionDeclaration(Box<L1FunctionDeclaration>),
     // The rest are transformed 1:1 from L1Expression to corresponding Expression form
     Literal(Literal),
+    Identifier(Identifier),
     Operator(Identifier),
     Sequence(Vec<L1Expression>),
     TupleBuilder(Vec<L1TupleExpression>),
@@ -204,6 +322,7 @@ pub enum L1Expression {
     ValueApplication(Box<L1ValueApplication>),
     NameAbstraction(Box<L1NameAbstraction>),
     NameApplication(Box<L1NameApplication>),
+    FunctionApplication(Box<L1FunctionApplication>),
     IntensionBuilder(Box<L1IntensionExpression>),
     IntensionApplication(Box<L1Expression>),
     Application(Vec<L1Expression>),
@@ -211,7 +330,6 @@ pub enum L1Expression {
     WhereVar(Box<L1WhereVarExpression>),
     Query(Box<L1Expression>),
     Perturb(Box<L1PerturbExpression>),
-    Identifier(Identifier),
     WhereDim(Box<L1WhereDimExpression>),
 }
 
@@ -229,12 +347,15 @@ impl L1Expression {
 pub enum Expression {
     Literal(Literal),
     Dimension(Dimension),
+    Identifier(Identifier),
     Operator(Identifier),
     Sequence(Vec<Expression>),
     TupleBuilder(Vec<TupleExpression>),
     BaseAbstraction(Box<BaseAbstraction>),
+    BaseApplication(Box<BaseApplication>),
     ValueAbstraction(Box<ValueAbstraction>),
-    NameAbstraction(Box<NameAbstraction>),
+    ValueApplication(Box<ValueApplication>),
+    FunctionApplication(Box<FunctionApplication>),
     IntensionBuilder(Box<IntensionExpression>),
     IntensionApplication(Box<Expression>),
     Application(Vec<Expression>),
@@ -242,7 +363,6 @@ pub enum Expression {
     WhereVar(Box<WhereVarExpression>),
     Query(Box<Expression>),
     Perturb(Box<PerturbExpression>),
-    Identifier(Identifier),
     WhereDim(Box<WhereDimExpression>),
 }
 

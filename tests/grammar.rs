@@ -6,6 +6,8 @@ use gaia::value::Value;
 use gaia::expression::Literal;
 use std::fs::File;
 use std::io::prelude::*;
+use std::collections::{HashMap, HashSet};
+use gaia::transform_l1_dimensions;
 
 mod grammar {
     include!(concat!(env!("OUT_DIR"), "/grammar.rs"));
@@ -58,9 +60,9 @@ fn test_tuple_builder() {
 
     let tuple_source_1 = read_source("./isrc/tuple_1.i");
 
-    let p1 = top_level(tuple_source_1.as_ref()).unwrap();
+    let p1 = scope(tuple_source_1.as_ref()).unwrap();
 
-    evaluate(p1);
+    evaluate(p1[0].clone());
 }
 
 #[test]
@@ -76,11 +78,11 @@ fn test_perturb() {
     let perturb_source_1 = read_source("./isrc/perturb_1.i");
     let perturb_source_2 = read_source("./isrc/perturb_2.i");
 
-    let p1 = top_level(perturb_source_1.as_ref()).unwrap();
-    evaluate(p1);
+    let p1 = scope(perturb_source_1.as_ref()).unwrap();
+    evaluate(p1[0].clone());
 
-    let p1 = top_level(perturb_source_2.as_ref()).unwrap();
-    evaluate(p1);
+    let p1 = scope(perturb_source_2.as_ref()).unwrap();
+    evaluate(p1[0].clone());
 }
 
 #[test]
@@ -90,19 +92,31 @@ fn test_query() {
 
 #[test]
 fn test_variable_declaration() {
-    assert!(variable_declaration("x = 0").is_ok());
-    assert!(variable_declaration("x = x + y").is_ok());
-    assert!(variable_declaration("A [x <- 0, y <- 0] = 0").is_ok());
-    //println!("{:?}", variable_declaration("let x = x + y").is_ok());
+    assert!(function_or_variable_declaration("x = 0").is_ok());
+    assert!(function_or_variable_declaration("x = x + y").is_ok());
+    assert!(function_or_variable_declaration("A [x <- 0, y <- 0] = 0").is_ok());
 }
 
 #[test]
 fn test_function_declaration() {
-    assert!(function_declaration("f.d = 0").is_ok());
-    println!("{:?}", function_declaration("f.d = 0"));
+    assert!(function_or_variable_declaration("f.d = 0").is_ok());
+    // println!("{:?}", function_or_variable_declaration("f.d = 0"));
 
-    assert!(function_declaration("f.d X = X").is_ok());
-    println!("{:?}", function_declaration("f.d X = X"));
+    assert!(
+        function_or_variable_declaration("fby.t X Y = if #.t <= 0 then X else Y @ [t <- #.t - 1]")
+            .is_ok()
+    );
+    // println!("{:?}", function_or_variable_declaration("f.d X = X"));
+}
+
+#[test]
+fn test_function_application() {
+    assert!(expression("f.d").is_ok());
+    assert!(expression("f.x.y").is_ok());
+    assert!(expression("f.x.y!z A").is_ok());
+    assert!(expression("f A").is_ok());
+    assert!(expression_where("fby.t X Y").is_ok());
+    assert!(expression("f.d + g A").is_ok());
 }
 
 #[test]
@@ -110,26 +124,92 @@ fn test_intension() {
     let intension_source_1 = read_source("./isrc/intension_1.i");
     let intension_source_2 = read_source("./isrc/intension_2.i");
 
-    let intension_test_1 = top_level(intension_source_1.as_ref()).unwrap();
-    let intension_test_2 = top_level(intension_source_2.as_ref()).unwrap();
+    let intension_test_1 = scope(intension_source_1.as_ref()).unwrap();
+    let intension_test_2 = scope(intension_source_2.as_ref()).unwrap();
 
-    let intension_test_1_result = evaluate(intension_test_1).expect_value();
+    let intension_test_1_result = evaluate(intension_test_1[0].clone()).expect_value();
 
     assert_eq!(Value::Literal(Literal::Int32(0)), intension_test_1_result);
 
-    let intension_test_2_result = evaluate(intension_test_2).expect_value();
+    let intension_test_2_result = evaluate(intension_test_2[0].clone()).expect_value();
 
     assert_eq!(Value::Literal(Literal::Int32(3)), intension_test_2_result);
 }
 
 #[test]
-fn test_fib() {
-    let fib_source = read_source("./isrc/fib.i");
+fn test_fib_stream() {
+    let fib_source = read_source("./isrc/fib_stream.i");
 
-    assert!(top_level(fib_source.as_ref()).is_ok());
-    let p1 = top_level(fib_source.as_ref()).unwrap();
+    assert!(scope(fib_source.as_ref()).is_ok());
+    let body = scope(fib_source.as_ref()).unwrap();
+    // println!("body == {:?}", body[0].clone());
+    evaluate(body[0].clone());
+}
 
-    evaluate(p1);
+#[test]
+fn test_fib_function() {
+    let fib_function_source = read_source("./isrc/fib_function.i");
+    assert!(scope(fib_function_source.as_ref()).is_ok());
+    let body = scope(fib_function_source.as_ref()).unwrap();
+    let mut dimensions = HashMap::new();
+    let mut names = HashSet::new();
+    let q_dimensions = HashSet::new();
+    let (x, _) = transform_l1_dimensions(
+        body[0].clone(),
+        &mut dimensions,
+        &mut names,
+        0,
+        q_dimensions,
+    );
+    // println!("body == {:?}", x.clone());
+    let result = evaluate(body[0].clone());
+    // println!("result == {:?}", result.clone());
+}
+
+#[test]
+fn test_naturals() {
+    let naturals_source = read_source("./isrc/naturals.i");
+    assert!(scope(naturals_source.as_ref()).is_ok());
+    let body = scope(naturals_source.as_ref()).unwrap();
+    let mut dimensions = HashMap::new();
+    let mut names = HashSet::new();
+    let q_dimensions = HashSet::new();
+    let (x, _) = transform_l1_dimensions(
+        body[0].clone(),
+        &mut dimensions,
+        &mut names,
+        0,
+        q_dimensions,
+    );
+    //println!("body == {:?}", x.clone());
+    let result = evaluate(body[0].clone());
+    // println!("result == {:?}", result.clone());
+}
+
+#[test]
+fn test_fib_sum() {
+    let fib_sum_source = read_source("./isrc/fib_sum.i");
+    assert!(scope(fib_sum_source.as_ref()).is_ok());
+    let body = scope(fib_sum_source.as_ref()).unwrap();
+    let mut dimensions = HashMap::new();
+    let mut names = HashSet::new();
+    let q_dimensions = HashSet::new();
+    let (x, _) = transform_l1_dimensions(
+        body[0].clone(),
+        &mut dimensions,
+        &mut names,
+        0,
+        q_dimensions,
+    );
+    // println!("body == {:?}", x.clone());
+    let result = evaluate(body[0].clone());
+    // println!("result == {:?}", result.clone());
+}
+
+#[test]
+fn test_prelude() {
+    let prelude_source = read_source("./isrc/prelude.i");
+    assert!(scope(prelude_source.as_ref()).is_ok());
 }
 
 // const M: &str = "

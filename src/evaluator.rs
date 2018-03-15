@@ -85,22 +85,22 @@ pub fn evaluate_id2(
             );
             match v1.clone() {
                 Either::Left(v) => {
-                    println!(
-                        "{} {} <| {} = {}",
-                        x,
-                        k.clone().restrict(d.clone()).print(),
-                        d.clone().print(),
-                        print_value(v)
-                    );
+                    // println!(
+                    //     "{} {} <| {} = {}",
+                    //     x,
+                    //     k.clone().restrict(d.clone()).print(),
+                    //     d.clone().print(),
+                    //     print_value(v)
+                    // );
                 }
                 Either::Right(d1) => {
-                    println!(
-                        "{} {} <| {} = {}",
-                        x,
-                        k.clone().restrict(d.clone()).print(),
-                        d.clone().print(),
-                        d1.clone().print()
-                    );
+                    // println!(
+                    //     "{} {} <| {} = {}",
+                    //     x,
+                    //     k.clone().restrict(d.clone()).print(),
+                    //     d.clone().print(),
+                    //     d1.clone().print()
+                    // );
                 }
             }
             c.add(x, k.clone().restrict(d), v1.clone());
@@ -120,10 +120,16 @@ pub fn evaluate(
     match x {
         Expression::Literal(lit) => Either::Left(Value::Literal(lit)),
 
+        // Constant dimensional query
         Expression::Dimension(di) => {
-            let v0 = k.lookup(di).unwrap();
-            let di = v0.expect_dimension();
-            Either::Left(Value::Dimension(Box::new(di)))
+            if d.contains(di.clone()) {
+                let v = k.lookup(di).expect("Expected dimension in context.");
+                Either::Left(v)
+            } else {
+                let mut h = HashSet::new();
+                h.insert(di);
+                Either::Right(Domain(h))
+            }
         }
 
         Expression::Operator(id) => Either::Left(Value::Identifier(id)),
@@ -202,22 +208,6 @@ pub fn evaluate(
                 match e0 {
                     Either::Left(l) => {
                         match l {
-                            // Value::BaseAbstraction(base_abstraction) => {
-                            //     let param = base_abstraction.param.clone();
-                            //     let value = params[0].clone();
-                            //     let mut context = Context::new();
-                            //     let mut domain = Domain::new();
-                            //     context.push(param.clone(), value.clone());
-                            //     domain.push(param.clone());
-                            //     evaluate(
-                            //         base_abstraction.expression.clone(),
-                            //         e,
-                            //         k.clone(),
-                            //         init_d.clone(),
-                            //         d.clone(),
-                            //         c,
-                            //     )
-                            // }
                             Value::Identifier(op) => {
                                 // lookup primitive operator & apply
                                 match op.as_ref() {
@@ -258,7 +248,7 @@ pub fn evaluate(
                                 }
                             }
 
-                            other => panic!("Expected function but here found {:?}", other),
+                            other => panic!("Expected operator but here found {:?}", other),
                         }
                     }
                     Either::Right(r) => Either::Right(r),
@@ -348,12 +338,293 @@ pub fn evaluate(
             Either::Left(Value::BaseAbstraction(base_abstraction.clone()))
         }
 
+        Expression::BaseApplication(base_application) => {
+            let base_abstraction = evaluate(
+                base_application.lhs.clone(),
+                e,
+                k.clone(),
+                init_d.clone(),
+                d.clone(),
+                c,
+            );
+            let mut args: Vec<Value> = vec![];
+            let mut missing: Domain = Domain::new();
+            for i in 0..base_application.args.len() {
+                let arg = evaluate(
+                    base_application.args[i].clone(),
+                    e,
+                    k.clone(),
+                    init_d.clone(),
+                    d.clone(),
+                    c,
+                );
+                match arg {
+                    Either::Left(l) => args.push(l),
+                    Either::Right(r) => {
+                        missing = missing.union(r);
+                    }
+                }
+            }
+
+            if missing.len() > 0 {
+                match base_abstraction {
+                    Either::Left(_) => Either::Right(missing),
+                    Either::Right(r) => Either::Right(missing.union(r)),
+                }
+            } else {
+                // Verify that base_application.lhs is a BaseAbstraction.
+                match base_abstraction {
+                    Either::Left(l) => match l {
+                        Value::BaseAbstraction(base_abstraction) => {
+                            // Check that the arity of BaseAbstraction matches the application.
+                            if base_abstraction.dimensions.len() == args.len() {
+                                let mut context = Context::new();
+                                for i in 0..args.len() {
+                                    context.push(
+                                        base_abstraction.dimensions[i].clone(),
+                                        args[i].clone(),
+                                    );
+                                }
+                                // let domain = Domain::new();
+                                // let domain = domain.from_vec(base_abstraction.dimensions);
+                                // Apply the base application to the arguments.
+                                evaluate(
+                                    base_abstraction.body.clone(),
+                                    e,
+                                    k.clone(),
+                                    init_d.clone(),
+                                    d.clone(),
+                                    c,
+                                )
+                            } else {
+                                panic!("Invalid arity in base application.")
+                            }
+                        }
+
+                        _ => panic!("Expected base abstraction but here found other."),
+                    },
+
+                    Either::Right(r) => Either::Right(r),
+                }
+            }
+        }
+
         Expression::ValueAbstraction(value_abstraction) => {
             Either::Left(Value::ValueAbstraction(value_abstraction.clone()))
         }
 
-        Expression::NameAbstraction(name_abstraction) => {
-            Either::Left(Value::NameAbstraction(name_abstraction.clone()))
+        Expression::ValueApplication(value_application) => {
+            let value_abstraction = evaluate(
+                value_application.lhs.clone(),
+                e,
+                k.clone(),
+                init_d.clone(),
+                d.clone(),
+                c,
+            );
+            let mut args: Vec<Value> = vec![];
+            let mut missing: Domain = Domain::new();
+            for i in 0..value_application.args.len() {
+                let arg = evaluate(
+                    value_application.args[i].clone(),
+                    e,
+                    k.clone(),
+                    init_d.clone(),
+                    d.clone(),
+                    c,
+                );
+                match arg {
+                    Either::Left(l) => args.push(l),
+                    Either::Right(r) => {
+                        missing = missing.union(r);
+                    }
+                }
+            }
+
+            if missing.len() > 0 {
+                match value_abstraction {
+                    Either::Left(_) => Either::Right(missing),
+                    Either::Right(r) => Either::Right(missing.union(r)),
+                }
+            } else {
+                // Verify that value_application.lhs is a ValueAbstraction.
+                match value_abstraction {
+                    Either::Left(l) => match l {
+                        Value::ValueAbstraction(value_abstraction) => {
+                            // Check that the arity of ValueAbstraction matches the application.
+                            if value_abstraction.dimensions.len() == args.len() {
+                                let mut context = Context::new();
+                                for i in 0..args.len() {
+                                    context.push(
+                                        value_abstraction.dimensions[i].clone(),
+                                        args[i].clone(),
+                                    );
+                                }
+                                // let domain = Domain::new();
+                                // let domain = domain.from_vec(base_abstraction.dimensions);
+                                // Apply the value application to the arguments.
+                                evaluate(
+                                    value_abstraction.body.clone(),
+                                    e,
+                                    k.clone().perturb(context),
+                                    init_d.clone(),
+                                    d.clone(),
+                                    c,
+                                )
+                            } else {
+                                panic!("Invalid arity in value application.")
+                            }
+                        }
+
+                        _ => panic!("Expected value abstraction but here found other."),
+                    },
+
+                    Either::Right(r) => Either::Right(r),
+                }
+            }
+        }
+
+        Expression::FunctionApplication(function_application) => {
+            let abstraction = e.lookup(function_application.id.clone());
+
+            // Evaluate the function in order to obtain a set of abstractions.
+            let abstraction = evaluate(
+                abstraction.clone(),
+                e,
+                k.clone(),
+                init_d.clone(),
+                d.clone(),
+                c,
+            );
+
+            // Evaluate the function arguments.
+            let mut base_args: Vec<Value> = vec![];
+            let mut value_args: Vec<Value> = vec![];
+            let mut missing: Domain = Domain::new();
+
+            // Evaluate the base arguments.
+            for i in 0..function_application.base_args.len() {
+                let base_arg = evaluate(
+                    function_application.base_args[i].clone(),
+                    e,
+                    k.clone(),
+                    init_d.clone(),
+                    d.clone(),
+                    c,
+                );
+                match base_arg {
+                    Either::Left(l) => base_args.push(l),
+                    Either::Right(r) => missing = missing.union(r),
+                }
+            }
+
+            // Evaluate the value arguments.
+            for i in 0..function_application.value_args.len() {
+                let value_arg = evaluate(
+                    function_application.value_args[i].clone(),
+                    e,
+                    k.clone(),
+                    init_d.clone(),
+                    d.clone(),
+                    c,
+                );
+                match value_arg {
+                    Either::Left(l) => value_args.push(l),
+                    Either::Right(r) => missing = missing.union(r),
+                }
+            }
+
+            // TODO: Ignore the name arguments.
+
+            if missing.len() > 0 {
+                match abstraction {
+                    Either::Left(_) => Either::Right(missing),
+                    Either::Right(r) => Either::Right(missing.union(r)),
+                }
+            } else {
+                match abstraction {
+                    Either::Left(l) => match l {
+                        Value::BaseAbstraction(base_abstraction) => {
+                            // Apply base args to the abstraction then apply value args if there are any.
+                            let mut context = Context::new();
+                            for i in 0..base_args.len() {
+                                context.push(
+                                    base_abstraction.dimensions[i].clone(),
+                                    base_args[i].clone(),
+                                );
+                            }
+                            // Apply the application to the arguments.
+                            let maybe_value_abstraction = evaluate(
+                                base_abstraction.body.clone(),
+                                e,
+                                k.clone(),
+                                init_d.clone(),
+                                d.clone(),
+                                c,
+                            );
+
+                            match maybe_value_abstraction {
+                                Either::Left(l) => match l {
+                                    Value::ValueAbstraction(value_abstraction) => {
+                                        // Apply value args to the abstraction.
+                                        let mut context = Context::new();
+                                        let mut domain = Domain::new();
+                                        for i in 0..value_args.len() {
+                                            context.push(
+                                                value_abstraction.dimensions[i].clone(),
+                                                value_args[i].clone(),
+                                            );
+                                            domain.push(value_abstraction.dimensions[i].clone());
+                                        }
+                                        // Apply the application to the arguments.
+                                        evaluate(
+                                            value_abstraction.body.clone(),
+                                            e,
+                                            k.clone().perturb(context),
+                                            init_d.clone(),
+                                            d.clone().union(domain),
+                                            c,
+                                        )
+                                    }
+
+                                    other_value => Either::Left(other_value),
+                                },
+
+                                Either::Right(r) => Either::Right(r),
+                            }
+                        }
+
+                        Value::ValueAbstraction(value_abstraction) => {
+                            // Apply value args to the abstraction.
+                            let mut context = Context::new();
+                            let mut domain = Domain::new();
+                            //println!("dimensions: {:?}", value_abstraction.dimensions.clone());
+                            //println!("value_args: {:?}", value_args.clone());
+                            for i in 0..value_args.len() {
+                                context.push(
+                                    value_abstraction.dimensions[i].clone(),
+                                    value_args[i].clone(),
+                                );
+                                domain.push(value_abstraction.dimensions[i].clone());
+                            }
+                            //println!("context: {:?}", k.clone().perturb(context.clone()));
+                            // Apply the application to the arguments.
+                            evaluate(
+                                value_abstraction.body.clone(),
+                                e,
+                                k.clone().perturb(context),
+                                init_d.clone(),
+                                d.clone().union(domain),
+                                c,
+                            )
+                        }
+
+                        other => panic!("Expected abstraction but here found {:?}", other),
+                    },
+
+                    Either::Right(r) => Either::Right(r),
+                }
+            }
         }
 
         Expression::IntensionBuilder(intens_expr) => {
@@ -441,9 +712,9 @@ pub fn evaluate(
                         let xi = dimension_expr.lhs;
                         let depth = k.lookup(wd.dim_q.clone()).unwrap().expect_integer();
                         let (di, div) = generate_dimension(xi.i, wd.nat_q, depth);
-                        context.push(xi, div);
+                        context.push(xi.clone(), div);
                         context.push(di.clone(), v);
-                        // domain.push(di.clone());
+                        domain.push(xi.clone());
                     }
 
                     Either::Right(dom) => missing = missing.union(dom),
