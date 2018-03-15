@@ -8,7 +8,7 @@ The goal is to arrive at a usable language and set of semantics for running prog
 
 The status of the project is that a programming language has been developed which still needs some work in order to be usable in a distributed setting and a concrete mapping to a distributed network such as extended Kademlia is in the works which promotes the current caching mechanism to a global environment. 
 
-# Functional Fibonacci
+## Functional Fibonacci
 
 In order to introduce the programming language, let us take a look at what a program in a traditional programming language might look like. As a simple example we define a function which computes the fibonacci of 3.
 
@@ -27,7 +27,7 @@ This program can be read as follows, compute the fib!3 where the fib!n is a func
 
 Lo and behold, we obtain the number 2. Nothing particularly scary going on and in fact there is nothing different here than in any regular programming language which implements recursive function definitions such as ML.
 
-# Intensional Fibonacci
+## Intensional Fibonacci
 
 The same program can be rewritten intensionally as follows.
 
@@ -61,7 +61,7 @@ fib [n <- 2] = 1
 fib [n <- 3] = 2
 ```
 
-# Infinite Naturals
+## Infinite Naturals
 
 In order to compute an infinite stream of naturals, we can use the following more concise equation.
 
