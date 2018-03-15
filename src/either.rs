@@ -12,7 +12,7 @@ impl Either<Value, Domain> {
         match *self {
             Either::Left(ref l) => l.clone(),
 
-            Either::Right(_) => panic!("Expected left"),
+            Either::Right(ref r) => panic!("Expected left but here found {:?}", r.clone()),
         }
     }
 }
