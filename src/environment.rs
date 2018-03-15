@@ -51,7 +51,7 @@ impl Environment {
                 return x.equation.clone();
             }
         }
-        panic!("Undefined identifier {}")
+        panic!("Undefined identifier {}", id)
     }
 
     pub fn define(&mut self, id: Identifier, x: Expression) {
