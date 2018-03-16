@@ -117,6 +117,7 @@ fn test_function_application() {
     assert!(expression("f A").is_ok());
     assert!(expression_where("fby.t X Y").is_ok());
     assert!(expression("f.d + g A").is_ok());
+    assert!(expression("wvr.d (next.d X) (next.d Y)").is_ok());
 }
 
 #[test]
@@ -182,6 +183,26 @@ fn test_naturals() {
         q_dimensions,
     );
     //println!("body == {:?}", x.clone());
+    let result = evaluate(body[0].clone());
+    // println!("result == {:?}", result.clone());
+}
+
+#[test]
+fn test_wvr() {
+    let wvr_source = read_source("./isrc/wvr.i");
+    assert!(scope(wvr_source.as_ref()).is_ok());
+    let body = scope(wvr_source.as_ref()).unwrap();
+    let mut dimensions = HashMap::new();
+    let mut names = HashSet::new();
+    let q_dimensions = HashSet::new();
+    let (x, _) = transform_l1_dimensions(
+        body[0].clone(),
+        &mut dimensions,
+        &mut names,
+        0,
+        q_dimensions,
+    );
+    // println!("body == {:?}", x.clone());
     let result = evaluate(body[0].clone());
     // println!("result == {:?}", result.clone());
 }
