@@ -18,8 +18,8 @@ dim_ -> () = "dim" ws
 if_ -> () = "if" ws
 then_ -> () = "then" ws
 else_ -> () = "else" ws
-true_ -> () = "true" ws
-false_ -> () = "false" ws
+true_ -> () = "true"
+false_ -> () = "false"
 where_ -> () = "where" ws
 end_ -> () = "end" ws
 
@@ -43,7 +43,7 @@ comma_ = "," ws
 lbrace_ = "{" ws
 rbrace_ = "}" ws
 lbracket_ = "(" ws
-rbracket_ = ")" ws
+rbracket = ")"
 lsquare_bracket_ = "[" ws
 rsquare_bracket_ = "]" ws
 
@@ -164,7 +164,7 @@ pub term -> L1Expression
     }
 
 expression_group -> L1Expression
-    = lbracket_ expr:expression rbracket_ {
+    = lbracket_ expr:expression rbracket {
         expr
     }
 
@@ -271,13 +271,13 @@ pub name_parameter -> L1Expression
     }
 
 pub name_argument_expr -> L1Expression
-    = expr:(identifier / literal / expression_group) {
+    = expr:(literal / expression_group / identifier) {
         expr
     }
 
 // ws here is problematic
 pub name_argument -> L1Expression
-    = whitespace arg:name_argument_expr {
+    = spaces arg:name_argument_expr {
         arg
     }
 
