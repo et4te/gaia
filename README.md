@@ -2,11 +2,9 @@
 
 This project is codenamed 'gaia' until a more suitable name is found. 
 
-This repository is an implementation of a programming language which is based on possible world semantics and in particular allows for the definition of intensions which can be used as the basis for the implementation of various incarnations of modal logic. The implementation uses the latest research in the intensional semantics world where TransLucid is the latest body of work which formally specifies important semantics which were missing from prior works (such as higher order functions).
+This repository is an implementation of a programming language which is based on possible world semantics and in particular allows for the definition of intensions. The implementation uses intensional semantics world where TransLucid is the most recent body of work to my knowledge, which formally specifies important semantics which were missing from prior works (such as higher order functions).
 
 The goal is to arrive at a usable language and set of semantics for running programs in a distributed setting and in accordance with a dynamic cryptographic protocol, a 'language of the network' in more abstract parlance. Given that the language relies solely on distributed environments (unlike languages which rely on closures), every intension is globally distributable. 
-
-The status of the project is that a programming language has been developed which still needs some work in order to be usable in a distributed setting and a concrete mapping to a distributed network such as extended Kademlia is in the works which promotes the current caching mechanism to a global environment. 
 
 ## Functional Fibonacci
 
